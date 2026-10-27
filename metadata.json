@@ -1,0 +1,6 @@
+{
+  "name": "Danny — Personal Journal & Digest",
+  "description": "A calm, minimalist personal website featuring curated restaurant discoveries with mango ratings, an interactive travel map with city dispatches, book and movie logs, and monthly reflections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
