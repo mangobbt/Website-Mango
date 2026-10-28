@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { JournalEntry } from '../../types';
 import {
   X,
@@ -19,7 +19,8 @@ import {
   Users,
   Check,
   Music,
-  Compass,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import { MangoIcon } from '../icons/MangoIcon';
 import { FractionalRating } from '../common/FractionalRating';
@@ -28,7 +29,9 @@ import { getSpotifyEmbedUrl } from '../../utils/spotify';
 
 interface EntryDetailModalProps {
   entry: JournalEntry | null;
+  allEntries?: JournalEntry[];
   onClose: () => void;
+  onSelectEntry?: (entry: JournalEntry) => void;
   onEdit: (entry: JournalEntry) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
@@ -37,16 +40,24 @@ interface EntryDetailModalProps {
 
 export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
   entry,
+  allEntries = [],
   onClose,
+  onSelectEntry,
   onEdit,
   onDelete,
   onToggleFavorite,
   isOwnerMode = false,
 }) => {
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isFavoriteLocal, setIsFavoriteLocal] = useState(entry?.isFavorite ?? false);
 
   useEffect(() => {
     setPhotoIdx(0);
+    setShowDeleteConfirm(false);
+    if (entry) {
+      setIsFavoriteLocal(entry.isFavorite);
+    }
   }, [entry]);
 
   useEffect(() => {
@@ -58,6 +69,15 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  const linkedEntries = useMemo(() => {
+    if (!entry || entry.section !== 'digest' || !entry.metadata?.linkedItemIds || allEntries.length === 0) {
+      return [];
+    }
+    return entry.metadata.linkedItemIds
+      .map((id) => allEntries.find((e) => e.id === id))
+      .filter((e): e is JournalEntry => !!e);
+  }, [entry, allEntries]);
 
   if (!entry) return null;
 
@@ -76,11 +96,18 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
   const travelSpots = entry.metadata?.travelSpots || [];
   const spotifyEmbedUrl = getSpotifyEmbedUrl(entry.metadata?.spotifyUrl);
 
-  const handleDelete = () => {
-    if (window.confirm(`Are you sure you want to delete "${entry.title}"?`)) {
-      onDelete(entry.id);
-      onClose();
-    }
+  const getSectionBadge = (section: string, isHomeCooked?: boolean) => {
+    if (isHomeCooked) return { label: 'Recipe', icon: '🍳', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+    if (section === 'travel') return { label: 'Travel', icon: '🏔️', bg: 'bg-blue-50 text-blue-800 border-blue-200' };
+    if (section === 'food') return { label: 'Food', icon: '🥭', bg: 'bg-amber-50 text-amber-800 border-amber-200' };
+    if (section === 'photos') return { label: 'Photo', icon: '📷', bg: 'bg-stone-100 text-stone-800 border-stone-200' };
+    return { label: 'Journal', icon: '✍️', bg: 'bg-stone-50 text-stone-700 border-stone-200' };
+  };
+
+  const confirmDelete = () => {
+    onDelete(entry.id);
+    setShowDeleteConfirm(false);
+    onClose();
   };
 
   // Render content with inline markdown image support: ![alt](url)
@@ -124,7 +151,7 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
       <div
         className={`relative w-full ${
           isTravel || isDigest ? 'max-w-5xl' : 'max-w-3xl'
-        } max-h-[92vh] flex flex-col bg-[#FBF9F5] rounded-3xl border border-[#E7E2D8] shadow-2xl overflow-hidden transition-all duration-300`}
+        } ${isTravel ? 'h-[90vh] max-h-[880px]' : 'max-h-[92vh]'} flex flex-col bg-[#FBF9F5] rounded-3xl border border-[#E7E2D8] shadow-2xl overflow-hidden transition-all duration-300`}
       >
         {/* Top Header Utility Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E7E2D8] bg-[#F6F3EC] shrink-0">
@@ -145,13 +172,16 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={(e) => onToggleFavorite(entry.id, e)}
-              title={entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              onClick={(e) => {
+                setIsFavoriteLocal(!isFavoriteLocal);
+                onToggleFavorite(entry.id, e);
+              }}
+              title={isFavoriteLocal ? 'Remove from favorites' : 'Add to favorites'}
               className="p-1.5 text-[#A8A29E] hover:text-[#DC2626] hover:bg-[#EAE4D7] rounded-lg transition-colors cursor-pointer"
             >
               <Heart
-                className={`w-4 h-4 ${
-                  entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
+                className={`w-4 h-4 transition-all duration-200 ${
+                  isFavoriteLocal ? 'fill-[#DC2626] text-[#DC2626] scale-110' : ''
                 }`}
               />
             </button>
@@ -169,7 +199,7 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   title="Delete Entry (Owner Mode)"
                   className="p-1.5 text-[#A8A29E] hover:text-[#DC2626] hover:bg-[#FEE2E2] rounded-lg transition-colors cursor-pointer"
                 >
@@ -188,13 +218,11 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Content Body: Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
-          {/* ==================== TRAVEL TWO-SIDED SPLIT LAYOUT ==================== */}
-          {isTravel ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* LARGER SIDE (lg:col-span-7): Full Essay, Photo Gallery, Story */}
-              <div className="lg:col-span-7 space-y-6">
+        {/* Content Body: Independent scrolling for Left Column (Essay) & Right Column (Places Visited) */}
+        {isTravel ? (
+          <div className="flex-1 overflow-hidden p-4 sm:p-5 lg:p-6 min-h-0 flex flex-col lg:flex-row gap-5 lg:gap-6">
+            {/* LARGER SIDE: Full Essay, Photo Gallery, Story (Scrollable independently, auto-hiding scrollbar) */}
+            <div className="flex-1 min-w-0 h-full overflow-y-auto pr-2 sm:pr-3 space-y-5 scrollbar-auto-hide overscroll-contain">
                 {/* Photo Gallery Viewer if available */}
                 {allPhotos.length > 0 && (
                   <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-black/90 flex items-center justify-center shadow-xs">
@@ -265,7 +293,7 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
 
                 {/* Best Memory Snippet */}
                 {entry.metadata?.bestMemory && (
-                  <div className="p-4 bg-[#F2F6FA] rounded-2xl border border-[#DDE7F0] text-xs sm:text-sm text-[#2B4C6F] italic leading-relaxed">
+                  <div className="p-3.5 bg-[#F2F6FA] rounded-2xl border border-[#DDE7F0] text-xs sm:text-sm text-[#2B4C6F] italic leading-relaxed">
                     <span className="font-semibold not-italic block text-[10px] uppercase tracking-wider text-[#2B4C6F]/70 mb-1">
                       Key Field Memory
                     </span>
@@ -274,12 +302,12 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 )}
 
                 {/* Full Essay Narrative (1,000+ words capable) */}
-                <div className="prose prose-stone max-w-none text-sm sm:text-base text-[#38332E] leading-relaxed border-t border-[#F0EBE1] pt-5">
+                <div className="prose prose-stone max-w-none text-sm sm:text-base text-[#38332E] leading-relaxed border-t border-[#F0EBE1] pt-4">
                   {renderRichContent(entry.content)}
                 </div>
 
                 {/* Tags Footer */}
-                <div className="pt-4 border-t border-[#E7E2D8] flex items-center justify-between text-xs text-[#78716C]">
+                <div className="pt-3.5 border-t border-[#E7E2D8] flex items-center justify-between text-xs text-[#78716C]">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {entry.tags.map((tag, idx) => (
                       <React.Fragment key={tag}>
@@ -292,27 +320,30 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* SMALLER SIDE (lg:col-span-5): Visited Spots, Mountain Ratings, Google Maps Links */}
-              <div className="lg:col-span-5 space-y-4">
-                <div className="bg-[#FAF7F2] p-5 rounded-3xl border border-[#EDE6DC] space-y-4 shadow-2xs">
-                  <div className="flex items-center justify-between border-b border-[#E7DFD2] pb-3">
+              {/* Vertical Divider on Desktop */}
+              <div className="hidden lg:block w-px bg-[#E7DFD2] shrink-0 my-1" />
+
+              {/* SMALLER SIDE: Visited Spots, Mountain Ratings (Scrollable independently, takes up less space, auto-hiding scrollbar) */}
+              <div className="w-full lg:w-[280px] xl:w-[310px] shrink-0 h-full overflow-y-auto pr-1 space-y-3.5 scrollbar-auto-hide overscroll-contain">
+                <div className="bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#EDE6DC] space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-[#E7DFD2] pb-2.5">
                     <div>
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-[#2B4C6F] uppercase tracking-wider">
-                        <span className="text-base">🏔️</span>
-                        <span>Places Visited & Liked</span>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-[#2D5A43] uppercase tracking-wider">
+                        <span className="text-sm">🏔️</span>
+                        <span>Places Visited</span>
                       </div>
-                      <p className="text-[11px] text-[#78716C] mt-0.5">
-                        Mountain ratings & Google Maps links
+                      <p className="text-[10px] text-[#78716C] mt-0.5">
+                        Ratings & Google Maps
                       </p>
                     </div>
-                    <span className="text-xs font-mono px-2 py-0.5 bg-white rounded-md border border-[#E7DFD2] text-[#57534E]">
+                    <span className="text-[11px] font-mono px-2 py-0.5 bg-white rounded-md border border-[#E7DFD2] text-[#57534E]">
                       {travelSpots.length} {travelSpots.length === 1 ? 'Spot' : 'Spots'}
                     </span>
                   </div>
 
                   {/* Spot Cards */}
                   {travelSpots.length > 0 ? (
-                    <div className="space-y-3.5">
+                    <div className="space-y-2.5">
                       {travelSpots.map((spot, idx) => {
                         const spotMapsUrl =
                           spot.googleMapsUrl ||
@@ -323,11 +354,11 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                         return (
                           <div
                             key={idx}
-                            className="bg-white rounded-2xl p-4 border border-[#E7E2D8] shadow-2xs hover:border-[#2B4C6F]/40 transition-colors"
+                            className="bg-white rounded-xl p-3 border border-[#E7E2D8] shadow-2xs hover:border-[#2B4C6F]/40 transition-colors"
                           >
                             {/* Spot Image if provided */}
                             {spot.photoUrl && (
-                              <div className="w-full h-32 rounded-xl overflow-hidden mb-3 bg-[#EAE6DE]">
+                              <div className="w-full h-24 rounded-lg overflow-hidden mb-2 bg-[#EAE6DE]">
                                 <img
                                   src={spot.photoUrl}
                                   alt={spot.name}
@@ -387,7 +418,7 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                     </div>
                   ) : (
                     <div className="p-6 text-center text-xs text-[#78716C] bg-white rounded-2xl border border-dashed border-[#DDD7CD]">
-                      <Compass className="w-6 h-6 mx-auto mb-2 text-[#A8A29E]" />
+                      <MapPin className="w-6 h-6 mx-auto mb-2 text-[#A8A29E]" />
                       <p className="font-medium text-[#57534E]">No spots cataloged yet</p>
                       <p className="text-[11px] mt-1">
                         {isOwnerMode
@@ -413,8 +444,9 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </div>
               </div>
             </div>
-          ) : (
-            /* ==================== STANDARD DISPATCH / FOOD / ESSAY LAYOUT ==================== */
+        ) : (
+          /* ==================== STANDARD DISPATCH / FOOD / ESSAY LAYOUT ==================== */
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-auto-hide">
             <div className="space-y-6">
               {/* Photo Gallery Viewer if available */}
               {allPhotos.length > 0 && (
@@ -608,32 +640,75 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Library Specific Book / Movie Callouts */}
+              {/* Library Specific Book / Movie Callouts & Quotes */}
               {entry.section === 'library' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[#FAF4F0] rounded-2xl border border-[#EEDFD5] text-xs">
-                  <div>
-                    <span className="text-[#9A3412] uppercase tracking-wider block text-[10px] font-semibold">
-                      {entry.metadata?.mediaType === 'movie' ? 'Film Credits' : 'Book Details'}
-                    </span>
-                    <span className="font-medium text-[#1C1917] text-sm mt-0.5 block">
-                      {entry.metadata?.creator
-                        ? `${entry.metadata.creator} (${entry.metadata.year || '2026'})`
-                        : entry.title}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#9A3412] uppercase tracking-wider block text-[10px] font-semibold">
-                      {entry.metadata?.mediaType === 'movie' ? 'Cinema Rating' : 'Book Rating'}
-                    </span>
-                    <div className="mt-1">
-                      <FractionalRating
-                        type={entry.metadata?.mediaType === 'movie' ? 'clapper' : 'book'}
-                        rating={entry.rating || 5}
-                        size={18}
-                        showNumeric
-                      />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[#FAF4F0] rounded-2xl border border-[#EEDFD5] text-xs">
+                    <div>
+                      <span className="text-[#9A3412] uppercase tracking-wider block text-[10px] font-semibold">
+                        {entry.metadata?.mediaType === 'movie' ? 'Film Credits' : 'Book Details'}
+                      </span>
+                      <span className="font-medium text-[#1C1917] text-sm mt-0.5 block">
+                        {entry.metadata?.creator
+                          ? `${entry.metadata.creator} (${entry.metadata.year || '2026'})`
+                          : entry.title}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#9A3412] uppercase tracking-wider block text-[10px] font-semibold">
+                        {entry.metadata?.mediaType === 'movie' ? 'Cinema Rating' : 'Book Rating'}
+                      </span>
+                      <div className="mt-1">
+                        <FractionalRating
+                          type={entry.metadata?.mediaType === 'movie' ? 'clapper' : 'book'}
+                          rating={entry.rating || 5}
+                          size={18}
+                          showNumeric
+                        />
+                      </div>
                     </div>
                   </div>
+
+                  {/* Single Key Memorable Quote (Featured Highlight) */}
+                  {entry.metadata?.favoriteQuote && (
+                    <div className="p-4 sm:p-5 bg-[#FAF4F0] rounded-2xl border border-[#EEDFD5] space-y-1.5 shadow-2xs">
+                      <span className="text-[#9A3412] uppercase tracking-wider block text-[10px] font-bold">
+                        ⭐ Key Memorable Quote
+                      </span>
+                      <blockquote className="font-serif italic text-sm sm:text-base text-[#1C1917] leading-relaxed pl-2 border-l-2 border-[#EA580C]">
+                        "{entry.metadata.favoriteQuote}"
+                      </blockquote>
+                      {entry.metadata.creator && (
+                        <p className="text-[11px] font-mono text-[#78716C] text-right">
+                          — {entry.metadata.creator}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Additional Quotes Collection */}
+                  {entry.metadata?.quotes && entry.metadata.quotes.length > 0 && (
+                    <div className="p-4 sm:p-5 bg-[#FAF8F5] rounded-2xl border border-[#E7E2D8] space-y-3">
+                      <div className="flex items-center justify-between text-xs text-[#78716C]">
+                        <span className="uppercase tracking-wider text-[10px] font-bold text-[#57534E]">
+                          Notable Excerpts & Lines
+                        </span>
+                        <span className="font-mono text-[11px]">
+                          {entry.metadata.quotes.length} {entry.metadata.quotes.length === 1 ? 'quote' : 'quotes'}
+                        </span>
+                      </div>
+                      <div className="space-y-2.5">
+                        {entry.metadata.quotes.map((q, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-white p-3 rounded-xl border border-[#E7E2D8] font-serif italic text-xs sm:text-sm text-[#44403C] leading-relaxed shadow-2xs"
+                          >
+                            "{q}"
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -678,6 +753,63 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                       </ul>
                     </div>
                   )}
+
+                  {/* Linked Highlights in Travel, Food & Photos for this Month */}
+                  {linkedEntries.length > 0 && (
+                    <div className="p-5 bg-[#EEF4EF] rounded-2xl border border-[#D2E0D4] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2D5A43]">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Curated Highlights · Travel, Food & Photos</span>
+                        </div>
+                        <span className="text-[11px] text-[#78716C] font-mono">
+                          {linkedEntries.length} Items Linked
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {linkedEntries.map((item: JournalEntry) => {
+                          const badge = getSectionBadge(item.section, item.metadata?.isHomeCooked);
+                          const thumb = item.coverPhoto || (item.photos && item.photos[0]);
+
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                if (onSelectEntry) onSelectEntry(item);
+                              }}
+                              className="group/item flex items-center gap-3 p-2.5 rounded-xl bg-white hover:bg-[#FAFBF9] border border-[#DCE6DE] hover:border-[#2D5A43]/50 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+                            >
+                              {thumb ? (
+                                <img
+                                  src={thumb}
+                                  alt={item.title}
+                                  className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[#E3EBE4]"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg bg-[#E3EBE4] flex items-center justify-center shrink-0 text-lg">
+                                  {badge.icon}
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${badge.bg}`}>
+                                  {badge.label}
+                                </span>
+                                <h4 className="text-xs font-serif font-medium text-[#1C1917] truncate mt-0.5 group-hover/item:text-[#2D5A43] transition-colors">
+                                  {item.title}
+                                </h4>
+                                <p className="text-[10px] text-[#78716C] truncate">
+                                  {item.location || item.subtitle}
+                                </p>
+                              </div>
+                              <ArrowRight className="w-3.5 h-3.5 text-[#A8A29E] group-hover/item:text-[#2D5A43] group-hover/item:translate-x-0.5 transition-all shrink-0" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -699,9 +831,57 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 <span className="font-mono">Created {new Date(entry.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+
+      {/* In-App Deletion Confirmation Dialog (Works 100% reliably in sandboxed iframes) */}
+      {showDeleteConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#FAF8F5] p-6 rounded-2xl border border-[#E7E2D8] max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center gap-3 text-[#DC2626]">
+              <div className="p-2.5 bg-red-100 rounded-xl">
+                <Trash2 className="w-5 h-5 text-[#DC2626]" />
+              </div>
+              <div>
+                <h4 className="font-serif font-bold text-[#1C1917] text-base leading-tight">
+                  Delete Entry
+                </h4>
+                <p className="text-[11px] text-[#78716C] mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#57534E] leading-relaxed bg-white/70 p-3 rounded-xl border border-[#E7E2D8]">
+              Are you sure you want to permanently delete <strong className="text-[#1C1917]">"{entry.title}"</strong> from your journal?
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3.5 py-2 text-xs font-medium text-[#57534E] hover:bg-[#EAE4D7] rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 text-xs font-semibold text-white bg-[#DC2626] hover:bg-[#B91C1C] rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Yes, Delete Entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

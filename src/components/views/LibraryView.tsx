@@ -316,10 +316,18 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       {entry.summary}
                     </p>
 
-                    {/* Favorite Quote Box */}
+                    {/* Favorite Quote Box & Quotes Badge */}
                     {entry.metadata?.favoriteQuote && (
-                      <div className="mt-4 p-3 bg-[#FAF4F0] rounded-xl border-l-2 border-[#9A3412] text-xs text-[#44403C] font-serif italic leading-relaxed">
-                        "{entry.metadata.favoriteQuote}"
+                      <div className="mt-4 p-3 bg-[#FAF4F0] rounded-xl border-l-2 border-[#9A3412] text-xs text-[#44403C] font-serif italic leading-relaxed space-y-1">
+                        <div className="flex items-center justify-between gap-1 text-[10px] font-sans not-italic font-bold text-[#9A3412] uppercase tracking-wider">
+                          <span>⭐ Memorable Quote</span>
+                          {entry.metadata?.quotes && entry.metadata.quotes.length > 0 && (
+                            <span className="font-mono text-[#78716C] bg-white px-1.5 py-0.5 rounded border border-[#EEDFD5]">
+                              +{entry.metadata.quotes.length} more
+                            </span>
+                          )}
+                        </div>
+                        <p>"{entry.metadata.favoriteQuote}"</p>
                       </div>
                     )}
                   </div>

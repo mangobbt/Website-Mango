@@ -30,6 +30,7 @@ export interface TravelSpot {
   photoUrl?: string;
   googleMapsUrl?: string;
   notes?: string;
+  coordinates?: TravelCoords;
 }
 
 export interface JournalEntry {
@@ -87,13 +88,15 @@ export interface JournalEntry {
     creator?: string; // Author or Director
     mediaType?: 'book' | 'movie';
     year?: number;
-    favoriteQuote?: string;
+    favoriteQuote?: string; // Single key memorable quote
+    quotes?: string[]; // Additional memorable quotes
     genre?: string;
 
     // Monthly Digest / Blog
     monthYear?: string;
     personalNotes?: string[]; // Danny's personal notes & reflections
     monthlyTrack?: string;
+    linkedItemIds?: string[]; // Linked items from travel, food, and photos highlighted this month
   };
 }
 

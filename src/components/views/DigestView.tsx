@@ -3,27 +3,61 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { JournalEntry } from '../../types';
-import { Music, Heart, ArrowRight } from 'lucide-react';
+import { Music, Heart, ArrowRight, BookOpen, Sparkles, Compass, ChefHat, Camera, Layers } from 'lucide-react';
 import { getSpotifyEmbedUrl } from '../../utils/spotify';
 
 interface DigestViewProps {
   entries: JournalEntry[];
+  allEntries?: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
 }
 
 export const DigestView: React.FC<DigestViewProps> = ({
   entries,
+  allEntries = [],
   onSelectEntry,
   onToggleFavorite,
 }) => {
-  const digestEntries = entries.filter((e) => e.section === 'digest');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'monthly_digest' | 'reflection'>('all');
+
+  const digestEntries = useMemo(() => entries.filter((e) => e.section === 'digest'), [entries]);
   const latestDigest = digestEntries[0];
   const pastDigests = digestEntries.slice(1);
 
+  // Filtered archives
+  const filteredPastDigests = useMemo(() => {
+    if (typeFilter === 'all') return pastDigests;
+    return pastDigests.filter((e) => {
+      if (typeFilter === 'monthly_digest') {
+        return e.subType === 'monthly_digest';
+      }
+      return e.subType === 'reflection' || e.subType !== 'monthly_digest';
+    });
+  }, [pastDigests, typeFilter]);
+
   const latestSpotifyEmbed = latestDigest ? getSpotifyEmbedUrl(latestDigest.metadata?.spotifyUrl) : null;
+
+  // Helper to resolve linked items in travel, food, and photos
+  const getLinkedEntries = (entry: JournalEntry): JournalEntry[] => {
+    const ids = entry.metadata?.linkedItemIds || [];
+    if (ids.length === 0 || allEntries.length === 0) return [];
+    return ids
+      .map((id) => allEntries.find((e) => e.id === id))
+      .filter((e): e is JournalEntry => !!e);
+  };
+
+  const getSectionBadge = (section: string, isHomeCooked?: boolean) => {
+    if (isHomeCooked) return { label: 'Recipe', icon: '🍳', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+    if (section === 'travel') return { label: 'Travel', icon: '🏔️', bg: 'bg-blue-50 text-blue-800 border-blue-200' };
+    if (section === 'food') return { label: 'Food', icon: '🥭', bg: 'bg-amber-50 text-amber-800 border-amber-200' };
+    if (section === 'photos') return { label: 'Photo', icon: '📷', bg: 'bg-stone-100 text-stone-800 border-stone-200' };
+    return { label: 'Journal', icon: '✍️', bg: 'bg-stone-50 text-stone-700 border-stone-200' };
+  };
+
+  const latestLinkedEntries = latestDigest ? getLinkedEntries(latestDigest) : [];
 
   return (
     <div className="space-y-12">
@@ -65,7 +99,9 @@ export const DigestView: React.FC<DigestViewProps> = ({
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#78716C] pb-6 border-b border-[#DDE7DF]">
             <div className="flex items-center gap-2">
-              <span className="font-serif italic text-sm text-[#2D5A43] font-semibold">Featured Issue 🦦</span>
+              <span className="font-serif italic text-sm text-[#2D5A43] font-semibold">
+                {latestDigest.subType === 'monthly_digest' ? 'Featured Monthly Digest 🦦' : 'Featured Essay & Thought ✍️'}
+              </span>
               <span aria-hidden="true">·</span>
               <span className="font-mono text-xs">{latestDigest.date}</span>
             </div>
@@ -100,6 +136,76 @@ export const DigestView: React.FC<DigestViewProps> = ({
               {latestDigest.content.slice(1)}
             </p>
           </div>
+
+          {/* Linked Items in Travel, Food & Photos for this Monthly Digest */}
+          {latestLinkedEntries.length > 0 && (
+            <div
+              className="mt-8 pt-6 border-t border-[#DDE7DF]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2D5A43]">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Curated Highlights · Travel, Food & Photos</span>
+                </div>
+                <span className="text-[11px] text-[#78716C] font-mono">
+                  {latestLinkedEntries.length} Items Linked
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {latestLinkedEntries.map((item) => {
+                  const badge = getSectionBadge(item.section, item.metadata?.isHomeCooked);
+                  const thumb = item.coverPhoto || (item.photos && item.photos[0]);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectEntry(item);
+                      }}
+                      className="group/item flex items-center gap-3.5 p-3 rounded-2xl bg-white hover:bg-[#EEF4EF] border border-[#DCE6DE] hover:border-[#2D5A43]/50 transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-xs"
+                    >
+                      {thumb ? (
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-[#E3EBE4]">
+                          <img
+                            src={thumb}
+                            alt={item.title}
+                            className="w-full h-full object-cover group-hover/item:scale-105 transition-transform duration-300"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 bg-[#E3EBE4] text-xl">
+                          {badge.icon}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badge.bg}`}
+                          >
+                            <span>{badge.icon}</span>
+                            <span>{badge.label}</span>
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-serif font-semibold text-[#1C1917] truncate group-hover/item:text-[#2D5A43] transition-colors">
+                          {item.title}
+                        </h4>
+                        <p className="text-[11px] text-[#78716C] truncate mt-0.5">
+                          {item.location || item.subtitle || item.summary}
+                        </p>
+                      </div>
+
+                      <ArrowRight className="w-3.5 h-3.5 text-[#A8A29E] group-hover/item:text-[#2D5A43] group-hover/item:translate-x-0.5 transition-all shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Personal Notes & Reflections (Human-authored, Forest Sage accent) */}
           {latestDigest.metadata?.personalNotes && latestDigest.metadata.personalNotes.length > 0 && (
@@ -157,74 +263,171 @@ export const DigestView: React.FC<DigestViewProps> = ({
         </section>
       )}
 
-      {/* Archive of Previous Issues */}
-      {pastDigests.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between border-b border-[#D9E5DC] pb-3">
-            <h3 className="text-xl font-serif font-medium text-[#1C1917]">
+      {/* Archive of Previous Issues & Thoughts with Filter Selection */}
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#D9E5DC] pb-4">
+          <div>
+            <h3 className="text-xl sm:text-2xl font-serif font-medium text-[#1C1917]">
               Previous Archives & Thoughts
             </h3>
-            <span className="text-xs text-[#78716C] font-mono">
-              {pastDigests.length} Past Issues
-            </span>
+            <p className="text-xs text-[#78716C] mt-0.5">
+              Explore past monthly issues alongside long-form blog posts and essays
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {pastDigests.map((digest) => (
-              <article
-                key={digest.id}
-                onClick={() => onSelectEntry(digest)}
-                className="group relative flex flex-col justify-between bg-[#F7F9F7] hover:bg-white rounded-2xl p-6 border border-[#DCE6DE] hover:border-[#2D5A43]/60 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 text-xs text-[#78716C] mb-3">
-                    <span className="font-mono text-[#2D5A43] font-medium">{digest.date}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => onToggleFavorite(digest.id, e)}
-                      title={digest.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                      className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer"
-                    >
-                      <Heart
-                        className={`w-4 h-4 ${
-                          digest.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <h4 className="text-xl font-serif font-medium text-[#1C1917] group-hover:text-[#2D5A43] transition-colors leading-snug">
-                    {digest.title}
-                  </h4>
-                  {digest.subtitle && (
-                    <p className="text-xs text-[#57534E] font-medium mt-1">
-                      {digest.subtitle}
-                    </p>
-                  )}
-
-                  <p className="mt-3 text-sm text-[#44403C] line-clamp-3 leading-relaxed">
-                    {digest.summary}
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-[#E3EBE4] flex items-center justify-between text-xs">
-                  {digest.metadata?.monthlyTrack ? (
-                    <span className="truncate text-[#57534E] max-w-[220px]">
-                      ♫ {digest.metadata.monthlyTrack}
-                    </span>
-                  ) : (
-                    <span className="text-[#78716C]">Notes</span>
-                  )}
-                  <span className="text-[#2D5A43] font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                    <span>Read</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
-              </article>
-            ))}
+          {/* Selection Filter: Blog Posts/Essays vs Monthly Digests */}
+          <div className="flex items-center gap-1.5 p-1 bg-[#EEF4EF] rounded-xl border border-[#D2E0D4]">
+            <button
+              type="button"
+              onClick={() => setTypeFilter('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                typeFilter === 'all'
+                  ? 'bg-[#2D5A43] text-white shadow-xs'
+                  : 'text-[#4A5D50] hover:text-[#1C1917]'
+              }`}
+            >
+              All Archives ({pastDigests.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('monthly_digest')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                typeFilter === 'monthly_digest'
+                  ? 'bg-[#2D5A43] text-white shadow-xs'
+                  : 'text-[#4A5D50] hover:text-[#1C1917]'
+              }`}
+            >
+              Monthly Digests ({pastDigests.filter((e) => e.subType === 'monthly_digest').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('reflection')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                typeFilter === 'reflection'
+                  ? 'bg-[#2D5A43] text-white shadow-xs'
+                  : 'text-[#4A5D50] hover:text-[#1C1917]'
+              }`}
+            >
+              Blog Posts & Essays ({pastDigests.filter((e) => e.subType !== 'monthly_digest').length})
+            </button>
           </div>
         </div>
-      )}
+
+        {filteredPastDigests.length === 0 ? (
+          <div className="p-12 text-center bg-[#F7F9F7] rounded-3xl border border-dashed border-[#DCE6DE]">
+            <p className="text-sm font-serif text-[#57534E]">No entries found for this category.</p>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('all')}
+              className="mt-3 px-3.5 py-1.5 text-xs font-medium text-[#2D5A43] bg-white rounded-lg border border-[#DCE6DE] hover:bg-[#EEF4EF] transition-colors cursor-pointer"
+            >
+              Show all archives
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {filteredPastDigests.map((digest) => {
+              const isMonthly = digest.subType === 'monthly_digest';
+              const linkedItems = getLinkedEntries(digest);
+
+              return (
+                <article
+                  key={digest.id}
+                  onClick={() => onSelectEntry(digest)}
+                  className="group relative flex flex-col justify-between bg-[#F7F9F7] hover:bg-white rounded-2xl p-6 border border-[#DCE6DE] hover:border-[#2D5A43]/60 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 text-xs text-[#78716C] mb-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                            isMonthly
+                              ? 'bg-emerald-50 text-[#2D5A43] border-[#CBE0D1]'
+                              : 'bg-amber-50 text-amber-900 border-amber-200'
+                          }`}
+                        >
+                          {isMonthly ? '🦦 Monthly Digest' : '✍️ Blog Post / Essay'}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono text-xs">{digest.date}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => onToggleFavorite(digest.id, e)}
+                        title={digest.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer"
+                      >
+                        <Heart
+                          className={`w-4 h-4 ${
+                            digest.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <h4 className="text-xl font-serif font-medium text-[#1C1917] group-hover:text-[#2D5A43] transition-colors leading-snug">
+                      {digest.title}
+                    </h4>
+                    {digest.subtitle && (
+                      <p className="text-xs text-[#57534E] font-medium mt-1">
+                        {digest.subtitle}
+                      </p>
+                    )}
+
+                    <p className="mt-3 text-sm text-[#44403C] line-clamp-3 leading-relaxed">
+                      {digest.summary}
+                    </p>
+
+                    {/* Small display of linked highlights for this digest */}
+                    {linkedItems.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-[#EAEFEA]">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#2D5A43] mb-2 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          <span>Linked This Month:</span>
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {linkedItems.map((item) => {
+                            const badge = getSectionBadge(item.section, item.metadata?.isHomeCooked);
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectEntry(item);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-[#EEF4EF] border border-[#DCE6DE] text-[11px] text-[#2B3F33] font-medium transition-colors cursor-pointer shadow-2xs"
+                                title={`Open ${item.title}`}
+                              >
+                                <span>{badge.icon}</span>
+                                <span className="truncate max-w-[130px]">{item.title}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-[#E3EBE4] flex items-center justify-between text-xs">
+                    {digest.metadata?.monthlyTrack ? (
+                      <span className="truncate text-[#57534E] max-w-[220px]">
+                        ♫ {digest.metadata.monthlyTrack}
+                      </span>
+                    ) : (
+                      <span className="text-[#78716C]">{isMonthly ? 'Field Notes' : 'Essay'}</span>
+                    )}
+                    <span className="text-[#2D5A43] font-medium group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                      <span>Read</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

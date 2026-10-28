@@ -5,19 +5,23 @@
 
 import React, { useState } from 'react';
 import { JournalEntry } from '../../types';
-import { Camera, MapPin, Heart, ChevronLeft, ChevronRight, X, ExternalLink, ArrowRight } from 'lucide-react';
+import { Camera, MapPin, Heart, ChevronLeft, ChevronRight, X, ExternalLink, ArrowRight, Edit3 } from 'lucide-react';
 import { getGoogleMapsUrl } from '../../utils/mapLinks';
 
 interface PhotosViewProps {
   entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
+  onEdit?: (entry: JournalEntry) => void;
+  isOwnerMode?: boolean;
 }
 
 export const PhotosView: React.FC<PhotosViewProps> = ({
   entries,
   onSelectEntry,
   onToggleFavorite,
+  onEdit,
+  isOwnerMode = false,
 }) => {
   const photoEntries = entries.filter(
     (e) => e.section === 'photos' || (e.photos && e.photos.length > 0) || e.coverPhoto
@@ -93,23 +97,41 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
                 {/* Subtle Permanent Scrim */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10 group-hover:from-black/92 group-hover:via-black/45 transition-colors duration-300" />
 
-                {/* Top Corner Details: Photo Count & Favorite Button */}
+                {/* Top Corner Details: Photo Count, Edit & Favorite Button */}
                 <div className="absolute top-2.5 left-3 right-3 flex items-center justify-between text-white text-xs z-10">
                   <span className="bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-mono tracking-wider">
                     📷 {photoCount} {photoCount === 1 ? 'frame' : 'frames'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={(e) => onToggleFavorite(entry.id, e)}
-                    className="p-1.5 bg-black/40 backdrop-blur-md rounded-md text-white/80 hover:text-[#DC2626] transition-colors"
-                    aria-label="Toggle favorite"
-                  >
-                    <Heart
-                      className={`w-3.5 h-3.5 ${
-                        entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                      }`}
-                    />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit(entry);
+                        }}
+                        className={`p-1.5 bg-black/40 hover:bg-black/80 backdrop-blur-md rounded-md text-white/80 hover:text-white transition-colors cursor-pointer ${
+                          isOwnerMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                        title="Edit Photo Entry"
+                        aria-label="Edit Photo Entry"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => onToggleFavorite(entry.id, e)}
+                      className="p-1.5 bg-black/40 backdrop-blur-md rounded-md text-white/80 hover:text-[#DC2626] transition-colors cursor-pointer"
+                      aria-label="Toggle favorite"
+                    >
+                      <Heart
+                        className={`w-3.5 h-3.5 ${
+                          entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Words Rendered Directly on the Photo */}
@@ -166,15 +188,33 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-4xl max-h-[92vh] flex flex-col bg-[#FBF9F5] rounded-3xl border border-[#E7E2D8] shadow-2xl overflow-hidden"
           >
-            {/* Close Button Top Right */}
-            <button
-              type="button"
-              onClick={closeStory}
-              aria-label="Close photo view"
-              className="absolute top-3.5 right-3.5 z-30 p-2.5 bg-black/60 hover:bg-black/85 text-white rounded-full transition-all cursor-pointer shadow-md"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Top Action Buttons (Edit & Close) */}
+            <div className="absolute top-3.5 right-3.5 z-30 flex items-center gap-2">
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const storyToEdit = activeStory;
+                    closeStory();
+                    onEdit(storyToEdit);
+                  }}
+                  aria-label="Edit photo story"
+                  title="Edit Photo Entry"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-black/60 hover:bg-black/85 text-white rounded-full text-xs font-medium transition-all cursor-pointer shadow-md backdrop-blur-xs"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Story</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={closeStory}
+                aria-label="Close photo view"
+                className="p-2.5 bg-black/60 hover:bg-black/85 text-white rounded-full transition-all cursor-pointer shadow-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             {/* TOP: Photo Viewer & Slide Carousel */}
             <div className="w-full bg-[#121110] relative flex flex-col justify-center items-center min-h-[260px] sm:min-h-[360px] max-h-[54vh] select-none overflow-hidden">
@@ -326,30 +366,42 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
                 </div>
               )}
 
-              {/* Footer Actions: Google Maps & Full Journal Link */}
+              {/* Footer Actions: Google Maps Location & Edit */}
               <div className="pt-3 border-t border-[#E7E2D8] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <a
                   href={getGoogleMapsUrl(activeStory)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EEF4F7] hover:bg-[#DEE9F0] text-[#2B4C6F] rounded-lg transition-colors font-medium cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#EEF4F7] hover:bg-[#DEE9F0] text-[#2B4C6F] rounded-lg transition-colors font-medium cursor-pointer shadow-2xs"
                 >
                   <MapPin className="w-3.5 h-3.5" />
                   <span>Google Maps Location</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeStory();
-                    onSelectEntry(activeStory);
-                  }}
-                  className="inline-flex items-center gap-1 text-[#2D5A43] hover:underline font-medium cursor-pointer"
-                >
-                  <span>Full Journal Entry</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const storyToEdit = activeStory;
+                        closeStory();
+                        onEdit(storyToEdit);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#2B4C6F] hover:bg-[#1D3550] text-white rounded-lg transition-colors font-medium cursor-pointer shadow-xs"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Photo</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={closeStory}
+                    className="px-3.5 py-1.5 text-stone-500 hover:text-stone-800 hover:bg-stone-200/50 rounded-lg transition-colors font-medium cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>

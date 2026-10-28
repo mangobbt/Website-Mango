@@ -16,12 +16,15 @@ import { DigestView } from './components/views/DigestView';
 import { PhotosView } from './components/views/PhotosView';
 import { EntryModal } from './components/modals/EntryModal';
 import { EntryDetailModal } from './components/modals/EntryDetailModal';
+import { PasswordUnlockModal } from './components/modals/PasswordUnlockModal';
 import { Heart, Check } from 'lucide-react';
 
 const STORAGE_KEY = 'danny_personal_journal_v5';
 const OWNER_STORAGE_KEY = 'danny_owner_mode_active';
 
 export default function App() {
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+
   // Check private owner mode from URL parameter (?edit=true or ?mode=editor) or stored session
   const [isOwnerMode, setIsOwnerMode] = useState<boolean>(() => {
     try {
@@ -40,10 +43,21 @@ export default function App() {
     }
   });
 
+  // Unlock owner mode
+  const handleUnlockOwnerMode = () => {
+    setIsOwnerMode(true);
+    try {
+      localStorage.setItem(OWNER_STORAGE_KEY, 'true');
+    } catch {}
+    showToast('🥭 Owner access unlocked! Edit controls enabled.');
+  };
+
   // Exit owner mode
   const handleExitOwnerMode = () => {
     setIsOwnerMode(false);
-    localStorage.removeItem(OWNER_STORAGE_KEY);
+    try {
+      localStorage.removeItem(OWNER_STORAGE_KEY);
+    } catch {}
     showToast('Switched to Public View');
   };
 
@@ -109,9 +123,15 @@ export default function App() {
     setSelectedTags([]);
   };
 
+  // Active detail entry derived directly from entries so updates like favoriting reflect instantly
+  const activeDetailEntry = useMemo(() => {
+    if (!selectedEntryForDetail) return null;
+    return entries.find((e) => e.id === selectedEntryForDetail.id) || selectedEntryForDetail;
+  }, [entries, selectedEntryForDetail]);
+
   // Toggle favorite on any entry
-  const handleToggleFavorite = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleToggleFavorite = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setEntries((prev) =>
       prev.map((entry) => {
         if (entry.id === id) {
@@ -122,6 +142,12 @@ export default function App() {
         return entry;
       })
     );
+    setSelectedEntryForDetail((current) => {
+      if (current && current.id === id) {
+        return { ...current, isFavorite: !current.isFavorite };
+      }
+      return current;
+    });
   };
 
   // Save new or updated entry
@@ -145,6 +171,13 @@ export default function App() {
   const handleDeleteEntry = (id: string) => {
     setEntries((prev) => prev.filter((e) => e.id !== id));
     showToast('Entry deleted successfully');
+  };
+
+  // Open edit modal for an entry
+  const handleOpenEditModal = (entry: JournalEntry) => {
+    setSelectedEntryForDetail(null);
+    setEditingEntry(entry);
+    setIsEntryModalOpen(true);
   };
 
   // Filter entries based on search & tags
@@ -213,7 +246,7 @@ export default function App() {
           setIsEntryModalOpen(true);
         }}
         isOwnerMode={isOwnerMode}
-        onToggleOwnerMode={handleExitOwnerMode}
+        onToggleOwnerMode={() => setIsPasswordModalOpen(true)}
       />
 
       {/* Main Container (Expanded width for wide essay reading & travel side-by-side view) */}
@@ -358,6 +391,7 @@ export default function App() {
             {activeSection === 'digest' && (
               <DigestView
                 entries={currentSectionEntries}
+                allEntries={entries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
                 onToggleFavorite={handleToggleFavorite}
               />
@@ -392,19 +426,41 @@ export default function App() {
                 entries={currentSectionEntries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
                 onToggleFavorite={handleToggleFavorite}
+                onEdit={handleOpenEditModal}
+                isOwnerMode={isOwnerMode}
               />
             )}
           </div>
         )}
       </main>
 
-      {/* Editorial Footer - strictly 'Fueled by fresh mangoes 🥭' */}
+      {/* Editorial Footer - click mango 🥭 for owner passcode edit access */}
       <footer className="mt-auto border-t border-[#E7E2D8] bg-[#F6F3EC] py-8 px-6 text-center">
         <p className="text-xs text-[#78716C] flex items-center justify-center gap-1.5 select-none font-medium">
           <span>Fueled by fresh mangoes</span>
-          <span className="text-base">🥭</span>
+          <button
+            type="button"
+            onClick={() => setIsPasswordModalOpen(true)}
+            className="text-base cursor-pointer hover:scale-125 active:scale-95 transition-transform p-1 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2D5A43]/40 relative"
+            title={isOwnerMode ? "Editor Mode Active (Click to manage)" : "Owner Access (Click to unlock editing)"}
+            aria-label="Owner Access Passcode"
+          >
+            <span>🥭</span>
+            {isOwnerMode && (
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
+            )}
+          </button>
         </p>
       </footer>
+
+      {/* Secret Mango Passcode Unlock Modal */}
+      <PasswordUnlockModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        isUnlocked={isOwnerMode}
+        onUnlock={handleUnlockOwnerMode}
+        onLock={handleExitOwnerMode}
+      />
 
       {/* In-App Entry Creator / Editor Modal (Only openable in Owner Mode) */}
       <EntryModal
@@ -414,19 +470,19 @@ export default function App() {
           setEditingEntry(null);
         }}
         onSave={handleSaveEntry}
+        onDelete={handleDeleteEntry}
         initialEntry={editingEntry}
         defaultSection={activeSection === 'home' ? 'digest' : activeSection}
+        allEntries={entries}
       />
 
       {/* Entry Detail Lightbox Modal (Edit/Delete controls hidden in Public Mode) */}
       <EntryDetailModal
-        entry={selectedEntryForDetail}
+        entry={activeDetailEntry}
+        allEntries={entries}
         onClose={() => setSelectedEntryForDetail(null)}
-        onEdit={(entry) => {
-          setSelectedEntryForDetail(null);
-          setEditingEntry(entry);
-          setIsEntryModalOpen(true);
-        }}
+        onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
+        onEdit={handleOpenEditModal}
         onDelete={handleDeleteEntry}
         onToggleFavorite={handleToggleFavorite}
         isOwnerMode={isOwnerMode}

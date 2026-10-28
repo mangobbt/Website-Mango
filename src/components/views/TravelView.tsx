@@ -3,27 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { JournalEntry } from '../../types';
 import { InteractiveMap } from '../map/InteractiveMap';
 import { FractionalRating } from '../common/FractionalRating';
-import { MapPin, Sparkles, Check, Heart, ExternalLink, ChevronLeft, ChevronRight, Compass } from 'lucide-react';
+import { MapPin, Sparkles, Check, ExternalLink } from 'lucide-react';
 import { getGoogleMapsUrl } from '../../utils/mapLinks';
 
 interface TravelViewProps {
   entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
+  onToggleFavorite?: (id: string, e: React.MouseEvent) => void;
 }
 
 export const TravelView: React.FC<TravelViewProps> = ({
   entries,
   onSelectEntry,
-  onToggleFavorite,
 }) => {
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'visited' | 'wishlist'>('all');
-  const carouselRef = useRef<HTMLDivElement>(null);
 
   const travelEntries = entries.filter((e) => e.section === 'travel');
 
@@ -47,19 +45,6 @@ export const TravelView: React.FC<TravelViewProps> = ({
 
   const handleMapSelect = (entry: JournalEntry) => {
     setSelectedPinId(entry.id);
-    onSelectEntry(entry);
-    // Smoothly scroll the selected destination card into view in the carousel
-    const el = document.getElementById(`travel-card-${entry.id}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  };
-
-  const scrollCarousel = (direction: 'left' | 'right') => {
-    if (carouselRef.current) {
-      const scrollAmount = direction === 'left' ? -380 : 380;
-      carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
   };
 
   const visitedCount = travelEntries.filter((e) => e.metadata?.status === 'visited').length;
@@ -138,50 +123,32 @@ export const TravelView: React.FC<TravelViewProps> = ({
             entries={travelEntries}
             selectedEntryId={selectedPinId}
             onSelectEntry={handleMapSelect}
+            onOpenDetail={onSelectEntry}
           />
         </div>
         <div className="flex items-center justify-between text-xs text-[#78716C] px-2 pt-2 font-mono">
-          <span>Click any city pin on the map to jump directly to its itinerary details</span>
+          <span>Click any city to zoom in & reveal mountain spots 🏔️ · Zoom (+ / -) or drag to pan</span>
           <span>Equirectangular World Projection</span>
         </div>
       </section>
 
-      {/* BOTTOM SECTION: Places Visited & Travel Spots (Horizontal Snap-Scroll Carousel) */}
+      {/* BOTTOM SECTION: Places Visited & Travel Spots (Grid display of all cards) */}
       <section aria-label="Places Visited & Travel Spots" className="space-y-4 pt-2">
         <div className="flex items-center justify-between pb-1 border-b border-[#E7E2D8]/80">
           <div>
             <div className="flex items-center gap-2">
-              <Compass className="w-4 h-4 text-[#2B4C6F]" />
+              <MapPin className="w-4 h-4 text-[#2B4C6F]" />
               <h2 className="text-lg font-serif font-medium text-[#1C1917]">
                 Places Visited & Travel Spots
               </h2>
             </div>
             <p className="text-xs text-[#78716C] mt-0.5">
-              Scroll horizontally through curated city guides, local spots, and mountain ratings
+              Browse all curated city guides, local spots, and mountain ratings
             </p>
           </div>
-
-          {/* Carousel Left / Right Navigation Buttons */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => scrollCarousel('left')}
-              className="p-2 rounded-xl bg-white hover:bg-[#F3EFE6] border border-[#E7E2D8] text-[#57534E] hover:text-[#1C1917] shadow-2xs transition-colors cursor-pointer"
-              title="Scroll left"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollCarousel('right')}
-              className="p-2 rounded-xl bg-white hover:bg-[#F3EFE6] border border-[#E7E2D8] text-[#57534E] hover:text-[#1C1917] shadow-2xs transition-colors cursor-pointer"
-              title="Scroll right"
-              aria-label="Scroll right"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          <span className="text-xs font-mono text-[#78716C]">
+            {filteredEntries.length} {filteredEntries.length === 1 ? 'place' : 'places'}
+          </span>
         </div>
 
         {filteredEntries.length === 0 ? (
@@ -189,11 +156,8 @@ export const TravelView: React.FC<TravelViewProps> = ({
             <p className="text-sm">No destinations matching this filter.</p>
           </div>
         ) : (
-          /* Horizontal Snap-Scrolling Cards Carousel */
-          <div
-            ref={carouselRef}
-            className="flex gap-5 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth scrollbar-thin scrollbar-thumb-stone-300 scrollbar-track-transparent"
-          >
+          /* Grid showing all cards directly */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEntries.map((entry) => {
               const isVisited = entry.metadata?.status === 'visited';
               const isSelected = selectedPinId === entry.id;
@@ -209,7 +173,7 @@ export const TravelView: React.FC<TravelViewProps> = ({
                     setSelectedPinId(entry.id);
                     onSelectEntry(entry);
                   }}
-                  className={`w-[320px] sm:w-[360px] md:w-[380px] shrink-0 snap-start group relative flex flex-col bg-white/95 hover:bg-white rounded-2xl overflow-hidden border transition-all duration-200 cursor-pointer shadow-xs hover:shadow-lg ${
+                  className={`group relative flex flex-col bg-white/95 hover:bg-white rounded-2xl overflow-hidden border transition-all duration-200 cursor-pointer shadow-xs hover:shadow-lg ${
                     isSelected
                       ? 'border-[#2B4C6F] ring-2 ring-[#2B4C6F]/25 shadow-md bg-[#FBFDFF]'
                       : 'border-[#E7E2D8] hover:border-[#2B4C6F]/50'
@@ -238,7 +202,7 @@ export const TravelView: React.FC<TravelViewProps> = ({
 
                   <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                     <div>
-                      {/* Status Tag & Favorite */}
+                      {/* Status Tag */}
                       <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
                         <span
                           className={`flex items-center gap-1 font-medium text-[11px] ${
@@ -248,18 +212,7 @@ export const TravelView: React.FC<TravelViewProps> = ({
                           {isVisited ? <Check className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
                           <span>{isVisited ? 'Documented Place' : 'Future Journey'}</span>
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => onToggleFavorite(entry.id, e)}
-                          className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer"
-                          aria-label="Toggle favorite"
-                        >
-                          <Heart
-                            className={`w-3.5 h-3.5 ${
-                              entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                            }`}
-                          />
-                        </button>
+                        <span className="font-mono text-[11px] text-[#78716C]">{entry.date}</span>
                       </div>
 
                       {/* Title & Subtitle */}

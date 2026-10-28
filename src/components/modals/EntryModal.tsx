@@ -38,20 +38,27 @@ interface EntryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (entry: JournalEntry) => void;
+  onDelete?: (id: string) => void;
   initialEntry?: JournalEntry | null;
   defaultSection?: SectionType;
+  allEntries?: JournalEntry[];
 }
 
 export const EntryModal: React.FC<EntryModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   initialEntry,
   defaultSection = 'food',
+  allEntries = [],
 }) => {
   const effectiveSection: SectionType = defaultSection === 'home' ? 'digest' : defaultSection;
 
   const [section, setSection] = useState<SectionType>(effectiveSection);
+  const [digestSubtype, setDigestSubtype] = useState<'monthly_digest' | 'reflection'>('monthly_digest');
+  const [linkedItemIds, setLinkedItemIds] = useState<string[]>([]);
+  const [linkedCategoryFilter, setLinkedCategoryFilter] = useState<'all' | 'travel' | 'food' | 'photos'>('all');
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [date, setDate] = useState('October 2026');
@@ -61,6 +68,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [rating, setRating] = useState<number>(5);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
@@ -112,6 +120,8 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [mediaType, setMediaType] = useState<'book' | 'movie'>('book');
   const [year, setYear] = useState<number>(2026);
   const [favoriteQuote, setFavoriteQuote] = useState('');
+  const [quotes, setQuotes] = useState<string[]>([]);
+  const [newQuoteInput, setNewQuoteInput] = useState('');
 
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -119,6 +129,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   useEffect(() => {
     if (initialEntry) {
       setSection(initialEntry.section === 'home' ? 'digest' : initialEntry.section);
+      setDigestSubtype(initialEntry.subType === 'reflection' ? 'reflection' : 'monthly_digest');
       setTitle(initialEntry.title);
       setSubtitle(initialEntry.subtitle || '');
       setDate(initialEntry.date);
@@ -154,14 +165,18 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setTravelSpots(initialEntry.metadata.travelSpots || []);
         setSpotifyUrl(initialEntry.metadata.spotifyUrl || '');
         setPersonalNotesText(initialEntry.metadata.personalNotes?.join('\n') || '');
+        setLinkedItemIds(initialEntry.metadata.linkedItemIds || []);
         setCreator(initialEntry.metadata.creator || '');
         setMediaType(initialEntry.metadata.mediaType || 'book');
         setYear(initialEntry.metadata.year || 2026);
         setFavoriteQuote(initialEntry.metadata.favoriteQuote || '');
+        setQuotes(initialEntry.metadata.quotes || []);
       }
     } else {
       // Reset form
       setSection(effectiveSection);
+      setDigestSubtype('monthly_digest');
+      setLinkedItemIds([]);
       setTitle('');
       setSubtitle('');
       setDate('October 2026');
@@ -206,6 +221,8 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       setMediaType('book');
       setYear(2026);
       setFavoriteQuote('');
+      setQuotes([]);
+      setNewQuoteInput('');
     }
   }, [initialEntry, effectiveSection, isOpen]);
 
@@ -350,7 +367,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
     if (section === 'food') derivedSubType = isHomeCooked ? 'recipe' : 'restaurant';
     if (section === 'travel') derivedSubType = travelStatus === 'visited' ? 'city_visited' : 'city_wishlist';
     if (section === 'library') derivedSubType = mediaType;
-    if (section === 'digest') derivedSubType = 'monthly_digest';
+    if (section === 'digest') derivedSubType = digestSubtype;
     if (section === 'photos') derivedSubType = 'photo_story';
 
     // Parse ingredients & steps
@@ -411,10 +428,12 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         travelSpots: section === 'travel' && travelSpots.length > 0 ? travelSpots : undefined,
         spotifyUrl: section === 'digest' ? spotifyUrl.trim() : undefined,
         personalNotes: section === 'digest' && parsedPersonalNotes.length > 0 ? parsedPersonalNotes : undefined,
+        linkedItemIds: section === 'digest' && digestSubtype === 'monthly_digest' && linkedItemIds.length > 0 ? linkedItemIds : undefined,
         creator: section === 'library' ? creator.trim() : undefined,
         mediaType: section === 'library' ? mediaType : undefined,
         year: section === 'library' ? year : undefined,
         favoriteQuote: section === 'library' ? favoriteQuote.trim() : undefined,
+        quotes: section === 'library' && quotes.length > 0 ? quotes.map((q) => q.trim()).filter(Boolean) : undefined,
       },
     };
 
@@ -530,17 +549,178 @@ export const EntryModal: React.FC<EntryModalProps> = ({
             </div>
           </div>
 
-          {/* DIGEST SPECIFICS: Spotify Link & Personal Notes */}
+          {/* DIGEST SPECIFICS: Type Selection (Digest vs Blog Post/Essay) & Linked Highlights */}
           {section === 'digest' && (
             <div className="p-5 bg-[#FAF7F2] rounded-2xl border border-[#EDE6DC] space-y-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2D5A43] pb-2 border-b border-[#EDE6DC]">
-                <Music className="w-4 h-4 text-[#1DB954]" />
-                <span>Spotify Soundtrack & Personal Notes</span>
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-[#EDE6DC]">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2D5A43]">
+                  <Music className="w-4 h-4 text-[#1DB954]" />
+                  <span>Digest & Thought Configuration</span>
+                </div>
+
+                {/* Subtype Selection: Monthly Digest vs Blog Post / Essay */}
+                <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-[#D8D0C2]">
+                  <button
+                    type="button"
+                    onClick={() => setDigestSubtype('monthly_digest')}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                      digestSubtype === 'monthly_digest'
+                        ? 'bg-[#2D5A43] text-white shadow-xs'
+                        : 'text-[#57534E] hover:text-[#1C1917]'
+                    }`}
+                  >
+                    🦦 Monthly Digest
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDigestSubtype('reflection')}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                      digestSubtype === 'reflection'
+                        ? 'bg-[#2D5A43] text-white shadow-xs'
+                        : 'text-[#57534E] hover:text-[#1C1917]'
+                    }`}
+                  >
+                    ✍️ Blog Post / Essay
+                  </button>
+                </div>
               </div>
+
+              {/* LINKED HIGHLIGHTS FOR MONTHLY DIGEST */}
+              {digestSubtype === 'monthly_digest' && (
+                <div className="p-4 bg-white rounded-xl border border-[#DCE6DE] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#2D5A43] uppercase tracking-wider">
+                        Link Highlights from Travel, Food & Photos
+                      </label>
+                      <p className="text-[11px] text-[#78716C] mt-0.5">
+                        Selected items will appear as a small showcase in this digest issue
+                      </p>
+                    </div>
+
+                    {/* Filter category pills */}
+                    <div className="flex items-center gap-1 text-[11px]">
+                      {(['all', 'travel', 'food', 'photos'] as const).map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setLinkedCategoryFilter(cat)}
+                          className={`px-2 py-0.5 rounded-md font-medium capitalize transition-colors cursor-pointer ${
+                            linkedCategoryFilter === cat
+                              ? 'bg-[#2D5A43] text-white'
+                              : 'bg-[#F4F7F4] text-[#57534E] hover:text-[#1C1917]'
+                          }`}
+                        >
+                          {cat === 'all'
+                            ? 'All'
+                            : cat === 'travel'
+                            ? '🏔️ Travel'
+                            : cat === 'food'
+                            ? '🍳 Food'
+                            : '📷 Photos'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selected Linked Items Pills */}
+                  {linkedItemIds.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-semibold text-[#78716C] uppercase tracking-wider block">
+                        Currently Linked ({linkedItemIds.length}):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedItemIds.map((id) => {
+                          const linked = allEntries.find((e) => e.id === id);
+                          if (!linked) return null;
+                          const icon =
+                            linked.section === 'travel'
+                              ? '🏔️'
+                              : linked.section === 'food'
+                              ? '🍳'
+                              : '📷';
+
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#EEF4EF] border border-[#D2E0D4] text-xs font-medium text-[#2B3F33]"
+                            >
+                              <span>{icon}</span>
+                              <span className="max-w-[140px] truncate">{linked.title}</span>
+                              <button
+                                type="button"
+                                onClick={() => setLinkedItemIds((prev) => prev.filter((i) => i !== id))}
+                                className="text-[#78716C] hover:text-[#DC2626] ml-1 cursor-pointer"
+                                title="Unlink item"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pickable Entries List */}
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1 border-t border-[#F0F4F1] pt-2">
+                    {allEntries
+                      .filter((e) => {
+                        if (e.id === initialEntry?.id) return false;
+                        if (linkedCategoryFilter === 'all') {
+                          return e.section === 'travel' || e.section === 'food' || e.section === 'photos';
+                        }
+                        return e.section === linkedCategoryFilter;
+                      })
+                      .map((item) => {
+                        const isLinked = linkedItemIds.includes(item.id);
+                        const icon =
+                          item.section === 'travel'
+                            ? '🏔️'
+                            : item.section === 'food'
+                            ? '🍳'
+                            : '📷';
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isLinked) {
+                                setLinkedItemIds((prev) => prev.filter((i) => i !== item.id));
+                              } else {
+                                setLinkedItemIds((prev) => [...prev, item.id]);
+                              }
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                              isLinked
+                                ? 'bg-[#EEF4EF] border-[#2D5A43] text-[#2D5A43]'
+                                : 'bg-[#FAFBF9] border-[#E5ECE6] text-[#3E3832] hover:bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span>{icon}</span>
+                              <span className="font-medium truncate">{item.title}</span>
+                              <span className="text-[10px] text-[#78716C] font-mono">({item.date})</span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold shrink-0 ml-2 ${
+                                isLinked
+                                  ? 'bg-[#2D5A43] text-white'
+                                  : 'bg-white border border-[#D8D0C2] text-[#78716C]'
+                              }`}
+                            >
+                              {isLinked ? '✓ Linked' : '+ Link'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-[#1C1917] mb-1">
-                  Spotify Track / Album / Playlist Link
+                  Spotify Track / Album / Playlist Link (Optional)
                 </label>
                 <input
                   type="url"
@@ -1065,10 +1245,14 @@ Slice chilled mangoes into ribbons and serve together."
                 </div>
               </div>
 
+              {/* Key Memorable Quote (Featured) */}
               <div>
-                <label className="block text-xs font-medium text-[#1C1917] mb-1">
-                  Memorable Quote
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-[#1C1917]">
+                    ⭐ Key Memorable Quote <span className="text-[#9A3412] font-normal">(Primary highlight)</span>
+                  </label>
+                  <span className="text-[11px] text-[#78716C]">Only one memorable quote</span>
+                </div>
                 <textarea
                   rows={2}
                   value={favoriteQuote}
@@ -1076,6 +1260,70 @@ Slice chilled mangoes into ribbons and serve together."
                   placeholder="e.g. Next time is next time. Now is now."
                   className="w-full px-3 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917] font-serif italic"
                 />
+              </div>
+
+              {/* Additional Quotes Collection */}
+              <div className="p-3.5 bg-white/70 rounded-xl border border-[#E7E2D8] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-[#57534E]">
+                    Additional Quotes ({quotes.length})
+                  </label>
+                  <span className="text-[10px] text-[#78716C]">Add as many quotes as you like</span>
+                </div>
+
+                {/* Input for adding new quote */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newQuoteInput}
+                    onChange={(e) => setNewQuoteInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newQuoteInput.trim()) {
+                          setQuotes((prev) => [...prev, newQuoteInput.trim()]);
+                          setNewQuoteInput('');
+                        }
+                      }
+                    }}
+                    placeholder="Type an additional quote and press Add..."
+                    className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#D8D0C2] rounded-lg text-[#1C1917] font-serif italic"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newQuoteInput.trim()) {
+                        setQuotes((prev) => [...prev, newQuoteInput.trim()]);
+                        setNewQuoteInput('');
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-[#9A3412] hover:bg-[#7C2D12] rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    + Add Quote
+                  </button>
+                </div>
+
+                {/* List of existing additional quotes */}
+                {quotes.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    {quotes.map((q, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between gap-2 p-2 bg-[#FAF8F5] rounded-lg border border-[#EDE6DC] text-xs font-serif italic text-[#3E3832]"
+                      >
+                        <span className="flex-1 truncate">"{q}"</span>
+                        <button
+                          type="button"
+                          onClick={() => setQuotes((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer"
+                          title="Remove quote"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-2">
@@ -1313,25 +1561,92 @@ Tip: You can copy and paste photos or screenshots directly into this box — the
             </div>
           </div>
 
-          {/* Footer Submit */}
-          <div className="pt-4 border-t border-[#E7E2D8] flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-[#57534E] hover:text-[#1C1917] hover:bg-[#EFEBE1] rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-5 py-2 text-xs font-medium text-white bg-[#2D5A43] hover:bg-[#234633] rounded-xl transition-all shadow-xs cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{initialEntry ? 'Save Changes' : 'Publish Entry'}</span>
-            </button>
+          {/* Footer Submit & Delete */}
+          <div className="pt-4 border-t border-[#E7E2D8] flex items-center justify-between gap-3">
+            {initialEntry && onDelete ? (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#DC2626] hover:text-white hover:bg-[#DC2626] border border-[#FCA5A5] rounded-xl transition-all cursor-pointer shadow-2xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Entry</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-medium text-[#57534E] hover:text-[#1C1917] hover:bg-[#EFEBE1] rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex items-center gap-2 px-5 py-2 text-xs font-medium text-white bg-[#2D5A43] hover:bg-[#234633] rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>{initialEntry ? 'Save Changes' : 'Publish Entry'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>
+
+      {/* Confirmation Dialog for Deletion inside EntryModal */}
+      {showDeleteConfirm && initialEntry && onDelete && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#FAF8F5] p-6 rounded-2xl border border-[#E7E2D8] max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center gap-3 text-[#DC2626]">
+              <div className="p-2.5 bg-red-100 rounded-xl">
+                <Trash2 className="w-5 h-5 text-[#DC2626]" />
+              </div>
+              <div>
+                <h4 className="font-serif font-bold text-[#1C1917] text-base leading-tight">
+                  Delete Entry
+                </h4>
+                <p className="text-[11px] text-[#78716C] mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#57534E] leading-relaxed bg-white/70 p-3 rounded-xl border border-[#E7E2D8]">
+              Are you sure you want to permanently delete <strong className="text-[#1C1917]">"{initialEntry.title}"</strong> from your journal?
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3.5 py-2 text-xs font-medium text-[#57534E] hover:bg-[#EAE4D7] rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDelete(initialEntry.id);
+                  setShowDeleteConfirm(false);
+                  onClose();
+                }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-[#DC2626] hover:bg-[#B91C1C] rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Yes, Delete Entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
