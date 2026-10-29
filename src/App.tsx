@@ -17,7 +17,7 @@ import { PhotosView } from './components/views/PhotosView';
 import { EntryModal } from './components/modals/EntryModal';
 import { EntryDetailModal } from './components/modals/EntryDetailModal';
 import { PasswordUnlockModal } from './components/modals/PasswordUnlockModal';
-import { Heart, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const STORAGE_KEY = 'danny_personal_journal_v5';
 const OWNER_STORAGE_KEY = 'danny_owner_mode_active';
@@ -128,27 +128,6 @@ export default function App() {
     if (!selectedEntryForDetail) return null;
     return entries.find((e) => e.id === selectedEntryForDetail.id) || selectedEntryForDetail;
   }, [entries, selectedEntryForDetail]);
-
-  // Toggle favorite on any entry
-  const handleToggleFavorite = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setEntries((prev) =>
-      prev.map((entry) => {
-        if (entry.id === id) {
-          const nextFav = !entry.isFavorite;
-          showToast(nextFav ? `Saved to favorites` : `Removed from favorites`);
-          return { ...entry, isFavorite: nextFav };
-        }
-        return entry;
-      })
-    );
-    setSelectedEntryForDetail((current) => {
-      if (current && current.id === id) {
-        return { ...current, isFavorite: !current.isFavorite };
-      }
-      return current;
-    });
-  };
 
   // Save new or updated entry
   const handleSaveEntry = (entryToSave: JournalEntry) => {
@@ -331,20 +310,7 @@ export default function App() {
                         <span className="uppercase tracking-widest text-[10px] font-semibold text-[#2D5A43]">
                           {entry.metadata?.isHomeCooked ? 'Home Recipe' : entry.section}
                         </span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono">{entry.date}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleFavorite(entry.id, e)}
-                            className="p-0.5 text-[#A8A29E] hover:text-[#DC2626] transition-colors"
-                          >
-                            <Heart
-                              className={`w-3.5 h-3.5 ${
-                                entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                              }`}
-                            />
-                          </button>
-                        </div>
+                        <span className="font-mono">{entry.date}</span>
                       </div>
 
                       <h3 className="text-xl font-serif font-medium text-[#1C1917] group-hover:text-[#2D5A43] transition-colors leading-snug">
@@ -393,7 +359,6 @@ export default function App() {
                 entries={currentSectionEntries}
                 allEntries={entries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
-                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -401,7 +366,6 @@ export default function App() {
               <TravelView
                 entries={currentSectionEntries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
-                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -409,7 +373,6 @@ export default function App() {
               <FoodView
                 entries={currentSectionEntries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
-                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -417,7 +380,6 @@ export default function App() {
               <LibraryView
                 entries={currentSectionEntries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
-                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -425,7 +387,6 @@ export default function App() {
               <PhotosView
                 entries={currentSectionEntries}
                 onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
-                onToggleFavorite={handleToggleFavorite}
                 onEdit={handleOpenEditModal}
                 isOwnerMode={isOwnerMode}
               />
@@ -484,7 +445,6 @@ export default function App() {
         onSelectEntry={(entry) => setSelectedEntryForDetail(entry)}
         onEdit={handleOpenEditModal}
         onDelete={handleDeleteEntry}
-        onToggleFavorite={handleToggleFavorite}
         isOwnerMode={isOwnerMode}
       />
 

@@ -7,19 +7,17 @@ import React, { useState, useMemo } from 'react';
 import { JournalEntry, SortOption } from '../../types';
 import { MangoIcon } from '../icons/MangoIcon';
 import { FractionalRating } from '../common/FractionalRating';
-import { Heart, MapPin, Utensils, ChefHat, Clock, ArrowUpDown } from 'lucide-react';
+import { MapPin, Utensils, ChefHat, Clock, ArrowUpDown } from 'lucide-react';
 import { getGoogleMapsUrl } from '../../utils/mapLinks';
 
 interface FoodViewProps {
   entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
 }
 
 export const FoodView: React.FC<FoodViewProps> = ({
   entries,
   onSelectEntry,
-  onToggleFavorite,
 }) => {
   const [subFilter, setSubFilter] = useState<'all' | 'seal' | 'restaurant' | 'cooked'>('all');
   const [minRatingFilter, setMinRatingFilter] = useState<number | 'all'>('all');
@@ -307,18 +305,6 @@ export const FoodView: React.FC<FoodViewProps> = ({
                           </>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => onToggleFavorite(entry.id, e)}
-                        title={entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                        className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer shrink-0"
-                      >
-                        <Heart
-                          className={`w-4 h-4 ${
-                            entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                          }`}
-                        />
-                      </button>
                     </div>
 
                     {/* Title & Subtitle */}

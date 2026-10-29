@@ -5,19 +5,17 @@
 
 import React, { useState, useMemo } from 'react';
 import { JournalEntry, SortOption } from '../../types';
-import { BookOpen, Film, Heart, ArrowUpDown } from 'lucide-react';
+import { BookOpen, Film, ArrowUpDown } from 'lucide-react';
 import { FractionalRating } from '../common/FractionalRating';
 
 interface LibraryViewProps {
   entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
 }
 
 export const LibraryView: React.FC<LibraryViewProps> = ({
   entries,
   onSelectEntry,
-  onToggleFavorite,
 }) => {
   const [mediaFilter, setMediaFilter] = useState<'all' | 'book' | 'movie'>('all');
   const [minRatingFilter, setMinRatingFilter] = useState<number | 'all'>('all');
@@ -28,7 +26,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const filteredEntries = useMemo(() => {
     return libraryEntries
       .filter((e) => {
-        // Type filter
+        // Media Type filter (All, Book, Movie)
         if (mediaFilter !== 'all') {
           const isMovie = e.metadata?.mediaType === 'movie' || e.subType === 'movie';
           if (mediaFilter === 'movie' && !isMovie) return false;
@@ -285,19 +283,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           </>
                         )}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => onToggleFavorite(entry.id, e)}
-                        title={entry.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                        className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer shrink-0"
-                      >
-                        <Heart
-                          className={`w-4 h-4 ${
-                            entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                          }`}
-                        />
-                      </button>
                     </div>
 
                     {/* Title & Creator */}
@@ -332,17 +317,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     )}
                   </div>
 
-                  {/* Card Base with Fractional Book / Clapperboard Rating */}
+                  {/* Card Base with Rating and Date */}
                   <div className="mt-6 pt-4 border-t border-[#F5ECE5] space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <FractionalRating
                         type={isMovie ? 'clapper' : 'book'}
-                        rating={ratingValue}
+                        rating={entry.rating || 5}
                         size={16}
                         showNumeric
                       />
                       <span className="text-xs text-[#78716C] font-mono">
-                        {entry.date}
+                        {entry.metadata?.exactDate || entry.date}
                       </span>
                     </div>
 

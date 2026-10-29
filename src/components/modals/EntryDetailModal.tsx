@@ -10,7 +10,6 @@ import {
   Edit3,
   Trash2,
   MapPin,
-  Heart,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
@@ -34,7 +33,6 @@ interface EntryDetailModalProps {
   onSelectEntry?: (entry: JournalEntry) => void;
   onEdit: (entry: JournalEntry) => void;
   onDelete: (id: string) => void;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   isOwnerMode?: boolean;
 }
 
@@ -45,19 +43,14 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
   onSelectEntry,
   onEdit,
   onDelete,
-  onToggleFavorite,
   isOwnerMode = false,
 }) => {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isFavoriteLocal, setIsFavoriteLocal] = useState(entry?.isFavorite ?? false);
 
   useEffect(() => {
     setPhotoIdx(0);
     setShowDeleteConfirm(false);
-    if (entry) {
-      setIsFavoriteLocal(entry.isFavorite);
-    }
   }, [entry]);
 
   useEffect(() => {
@@ -155,7 +148,7 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
       >
         {/* Top Header Utility Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E7E2D8] bg-[#F6F3EC] shrink-0">
-          <div className="flex items-center gap-2 text-xs text-[#78716C] font-mono">
+          <div className="flex items-center gap-2 text-xs text-[#78716C] font-mono flex-wrap">
             <span className="uppercase tracking-widest text-[#2D5A43] font-sans font-semibold">
               {isRecipe
                 ? '🍳 HOME COOKING'
@@ -166,26 +159,18 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 : entry.section.toUpperCase()}
             </span>
             <span aria-hidden="true">·</span>
-            <span>{entry.date}</span>
+            {entry.metadata?.startDate && entry.metadata?.endDate ? (
+              <span className="text-[#1C1917] font-medium bg-white px-2 py-0.5 rounded border border-[#E7E2D8]">
+                {entry.metadata.startDate} → {entry.metadata.endDate}
+              </span>
+            ) : entry.metadata?.exactDate ? (
+              <span>{entry.metadata.exactDate}</span>
+            ) : (
+              <span>{entry.date}</span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={(e) => {
-                setIsFavoriteLocal(!isFavoriteLocal);
-                onToggleFavorite(entry.id, e);
-              }}
-              title={isFavoriteLocal ? 'Remove from favorites' : 'Add to favorites'}
-              className="p-1.5 text-[#A8A29E] hover:text-[#DC2626] hover:bg-[#EAE4D7] rounded-lg transition-colors cursor-pointer"
-            >
-              <Heart
-                className={`w-4 h-4 transition-all duration-200 ${
-                  isFavoriteLocal ? 'fill-[#DC2626] text-[#DC2626] scale-110' : ''
-                }`}
-              />
-            </button>
-
             {/* Edit and Delete buttons: ONLY visible in Owner Mode */}
             {isOwnerMode && (
               <>
@@ -270,13 +255,23 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
 
                 {/* Title & Metadata */}
                 <div>
-                  <div className="flex items-center gap-2 text-xs text-[#2B4C6F] font-medium mb-1.5">
-                    <MapPin className="w-3.5 h-3.5 shrink-0" />
-                    <span>{entry.location}</span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#2B4C6F] font-medium mb-1.5">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 shrink-0" />
+                      <span>{entry.location}</span>
+                    </div>
                     {entry.metadata?.travelSeason && (
                       <>
                         <span aria-hidden="true">·</span>
                         <span className="text-[#78716C]">{entry.metadata.travelSeason}</span>
+                      </>
+                    )}
+                    {entry.metadata?.startDate && entry.metadata?.endDate && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="text-xs font-mono text-[#2B4C6F] bg-[#EEF4F7] px-2 py-0.5 rounded border border-[#DDE4E9]">
+                          Trip: {entry.metadata.startDate} → {entry.metadata.endDate}
+                        </span>
                       </>
                     )}
                   </div>
@@ -659,12 +654,18 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                         {entry.metadata?.mediaType === 'movie' ? 'Cinema Rating' : 'Book Rating'}
                       </span>
                       <div className="mt-1">
-                        <FractionalRating
-                          type={entry.metadata?.mediaType === 'movie' ? 'clapper' : 'book'}
-                          rating={entry.rating || 5}
-                          size={18}
-                          showNumeric
-                        />
+                        {entry.rating !== undefined ? (
+                          <FractionalRating
+                            type={entry.metadata?.mediaType === 'movie' ? 'clapper' : 'book'}
+                            rating={entry.rating}
+                            size={18}
+                            showNumeric
+                          />
+                        ) : (
+                          <span className="text-xs font-mono text-[#78716C] italic">
+                            Unrated on shelf
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

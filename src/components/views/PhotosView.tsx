@@ -5,13 +5,12 @@
 
 import React, { useState } from 'react';
 import { JournalEntry } from '../../types';
-import { Camera, MapPin, Heart, ChevronLeft, ChevronRight, X, ExternalLink, ArrowRight, Edit3 } from 'lucide-react';
+import { Camera, MapPin, ChevronLeft, ChevronRight, X, ExternalLink, ArrowRight, Edit3 } from 'lucide-react';
 import { getGoogleMapsUrl } from '../../utils/mapLinks';
 
 interface PhotosViewProps {
   entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onEdit?: (entry: JournalEntry) => void;
   isOwnerMode?: boolean;
 }
@@ -19,7 +18,6 @@ interface PhotosViewProps {
 export const PhotosView: React.FC<PhotosViewProps> = ({
   entries,
   onSelectEntry,
-  onToggleFavorite,
   onEdit,
   isOwnerMode = false,
 }) => {
@@ -97,40 +95,26 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
                 {/* Subtle Permanent Scrim */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10 group-hover:from-black/92 group-hover:via-black/45 transition-colors duration-300" />
 
-                {/* Top Corner Details: Photo Count, Edit & Favorite Button */}
+                {/* Top Corner Details: Photo Count & Editor Edit Button */}
                 <div className="absolute top-2.5 left-3 right-3 flex items-center justify-between text-white text-xs z-10">
                   <span className="bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-mono tracking-wider">
                     📷 {photoCount} {photoCount === 1 ? 'frame' : 'frames'}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {onEdit && (
+                    {isOwnerMode && onEdit && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           onEdit(entry);
                         }}
-                        className={`p-1.5 bg-black/40 hover:bg-black/80 backdrop-blur-md rounded-md text-white/80 hover:text-white transition-colors cursor-pointer ${
-                          isOwnerMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        }`}
+                        className="p-1.5 bg-black/60 hover:bg-black/90 backdrop-blur-md rounded-md text-white transition-colors cursor-pointer"
                         title="Edit Photo Entry"
                         aria-label="Edit Photo Entry"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => onToggleFavorite(entry.id, e)}
-                      className="p-1.5 bg-black/40 backdrop-blur-md rounded-md text-white/80 hover:text-[#DC2626] transition-colors cursor-pointer"
-                      aria-label="Toggle favorite"
-                    >
-                      <Heart
-                        className={`w-3.5 h-3.5 ${
-                          entry.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                        }`}
-                      />
-                    </button>
                   </div>
                 </div>
 
@@ -190,7 +174,7 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
           >
             {/* Top Action Buttons (Edit & Close) */}
             <div className="absolute top-3.5 right-3.5 z-30 flex items-center gap-2">
-              {onEdit && (
+              {isOwnerMode && onEdit && (
                 <button
                   type="button"
                   onClick={() => {
@@ -199,7 +183,7 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
                     onEdit(storyToEdit);
                   }}
                   aria-label="Edit photo story"
-                  title="Edit Photo Entry"
+                  title="Edit Photo Entry (Editor Mode)"
                   className="flex items-center gap-1.5 px-3 py-2 bg-black/60 hover:bg-black/85 text-white rounded-full text-xs font-medium transition-all cursor-pointer shadow-md backdrop-blur-xs"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
@@ -380,7 +364,7 @@ export const PhotosView: React.FC<PhotosViewProps> = ({
                 </a>
 
                 <div className="flex items-center gap-2">
-                  {onEdit && (
+                  {isOwnerMode && onEdit && (
                     <button
                       type="button"
                       onClick={() => {

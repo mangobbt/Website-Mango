@@ -6,7 +6,7 @@
 import React from 'react';
 import { JournalEntry, SectionType } from '../../types';
 import { MangoIcon } from '../icons/MangoIcon';
-import { ArrowRight, Sparkles, MapPin, Compass, BookOpen, Calendar, Camera, Heart } from 'lucide-react';
+import { ArrowRight, Sparkles, MapPin, Compass, BookOpen, Calendar, Camera } from 'lucide-react';
 import { getGoogleMapsUrl } from '../../utils/mapLinks';
 
 interface HomeViewProps {

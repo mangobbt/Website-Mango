@@ -5,21 +5,19 @@
 
 import React, { useState, useMemo } from 'react';
 import { JournalEntry } from '../../types';
-import { Music, Heart, ArrowRight, BookOpen, Sparkles, Compass, ChefHat, Camera, Layers } from 'lucide-react';
+import { Music, ArrowRight, BookOpen, Sparkles, Compass, ChefHat, Camera, Layers } from 'lucide-react';
 import { getSpotifyEmbedUrl } from '../../utils/spotify';
 
 interface DigestViewProps {
   entries: JournalEntry[];
   allEntries?: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
 }
 
 export const DigestView: React.FC<DigestViewProps> = ({
   entries,
   allEntries = [],
   onSelectEntry,
-  onToggleFavorite,
 }) => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'monthly_digest' | 'reflection'>('all');
 
@@ -105,17 +103,6 @@ export const DigestView: React.FC<DigestViewProps> = ({
               <span aria-hidden="true">·</span>
               <span className="font-mono text-xs">{latestDigest.date}</span>
             </div>
-            <button
-              type="button"
-              onClick={(e) => onToggleFavorite(latestDigest.id, e)}
-              className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer"
-            >
-              <Heart
-                className={`w-4 h-4 ${
-                  latestDigest.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                }`}
-              />
-            </button>
           </div>
 
           <div className="mt-8 space-y-5">
@@ -351,18 +338,6 @@ export const DigestView: React.FC<DigestViewProps> = ({
                         <span aria-hidden="true">·</span>
                         <span className="font-mono text-xs">{digest.date}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => onToggleFavorite(digest.id, e)}
-                        title={digest.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                        className="p-1 text-[#A8A29E] hover:text-[#DC2626] transition-colors cursor-pointer"
-                      >
-                        <Heart
-                          className={`w-4 h-4 ${
-                            digest.isFavorite ? 'fill-[#DC2626] text-[#DC2626]' : ''
-                          }`}
-                        />
-                      </button>
                     </div>
 
                     <h4 className="text-xl font-serif font-medium text-[#1C1917] group-hover:text-[#2D5A43] transition-colors leading-snug">

@@ -115,6 +115,11 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [photoBackstory, setPhotoBackstory] = useState('');
   const [cameraDetails, setCameraDetails] = useState('');
 
+  // Date & Duration specifics
+  const [exactDate, setExactDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   // Library specifics
   const [creator, setCreator] = useState('');
   const [mediaType, setMediaType] = useState<'book' | 'movie'>('book');
@@ -171,6 +176,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setYear(initialEntry.metadata.year || 2026);
         setFavoriteQuote(initialEntry.metadata.favoriteQuote || '');
         setQuotes(initialEntry.metadata.quotes || []);
+        setExactDate(initialEntry.metadata.exactDate || '');
+        setStartDate(initialEntry.metadata.startDate || '');
+        setEndDate(initialEntry.metadata.endDate || '');
       }
     } else {
       // Reset form
@@ -180,6 +188,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       setTitle('');
       setSubtitle('');
       setDate('October 2026');
+      setExactDate('');
+      setStartDate('');
+      setEndDate('');
       setLocation('');
       setLat('35.6762');
       setLng('139.6503');
@@ -434,6 +445,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         year: section === 'library' ? year : undefined,
         favoriteQuote: section === 'library' ? favoriteQuote.trim() : undefined,
         quotes: section === 'library' && quotes.length > 0 ? quotes.map((q) => q.trim()).filter(Boolean) : undefined,
+        exactDate: exactDate.trim() || undefined,
+        startDate: (section === 'travel' || section === 'library') && startDate.trim() ? startDate.trim() : undefined,
+        endDate: (section === 'travel' || section === 'library') && endDate.trim() ? endDate.trim() : undefined,
       },
     };
 
@@ -535,18 +549,77 @@ export const EntryModal: React.FC<EntryModalProps> = ({
               />
             </div>
 
-            <div className="sm:col-span-3">
+            {/* Specific Exact Date for Calendar Mapping */}
+            <div>
               <label className="block text-xs font-medium text-[#1C1917] mb-1">
-                Subtitle / Description Hook
+                Exact Calendar Date <span className="text-[#78716C] font-normal">(for calendar)</span>
               </label>
               <input
-                type="text"
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                placeholder="e.g. Hand-pulled noodles in golden dashi with charred scallions"
+                type="date"
+                value={exactDate}
+                onChange={(e) => setExactDate(e.target.value)}
                 className="w-full px-3.5 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917] focus:ring-2 focus:ring-[#2D5A43]/30 focus:border-[#2D5A43] focus:outline-hidden"
               />
             </div>
+
+            {/* Start and End Dates (for Travel and Books duration tracking) */}
+            {(section === 'travel' || section === 'library') ? (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-[#1C1917] mb-1">
+                    Start Date <span className="text-[#78716C] font-normal">(Trip / Reading begin)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (!exactDate) setExactDate(e.target.value);
+                    }}
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917] focus:ring-2 focus:ring-[#2D5A43]/30 focus:border-[#2D5A43] focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#1C1917] mb-1">
+                    End Date <span className="text-[#78716C] font-normal">(Trip / Reading complete)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3.5 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917] focus:ring-2 focus:ring-[#2D5A43]/30 focus:border-[#2D5A43] focus:outline-hidden"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-[#1C1917] mb-1">
+                  Subtitle / Description Hook
+                </label>
+                <input
+                  type="text"
+                  value={subtitle}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                  placeholder="e.g. Hand-pulled noodles in golden dashi with charred scallions"
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917] focus:ring-2 focus:ring-[#2D5A43]/30 focus:border-[#2D5A43] focus:outline-hidden"
+                />
+              </div>
+            )}
+
+            {(section === 'travel' || section === 'library') && (
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-medium text-[#1C1917] mb-1">
+                  Subtitle / Description Hook
+                </label>
+                <input
+                  type="text"
+                  value={subtitle}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                  placeholder="e.g. Cedar scent, old wooden bookshops, and slow canal walks"
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917] focus:ring-2 focus:ring-[#2D5A43]/30 focus:border-[#2D5A43] focus:outline-hidden"
+                />
+              </div>
+            )}
           </div>
 
           {/* DIGEST SPECIFICS: Type Selection (Digest vs Blog Post/Essay) & Linked Highlights */}

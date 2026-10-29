@@ -13,7 +13,6 @@ import { getGoogleMapsUrl } from '../../utils/mapLinks';
 interface TravelViewProps {
   entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry) => void;
-  onToggleFavorite?: (id: string, e: React.MouseEvent) => void;
 }
 
 export const TravelView: React.FC<TravelViewProps> = ({

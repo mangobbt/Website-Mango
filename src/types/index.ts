@@ -92,6 +92,11 @@ export interface JournalEntry {
     quotes?: string[]; // Additional memorable quotes
     genre?: string;
 
+    // Start & End Dates / Durations (Travel trips, Reading periods, Events)
+    startDate?: string; // e.g. "2026-10-04" or "October 4, 2026"
+    endDate?: string; // e.g. "2026-10-18" or "October 18, 2026"
+    exactDate?: string; // YYYY-MM-DD for precise calendar placement
+
     // Monthly Digest / Blog
     monthYear?: string;
     personalNotes?: string[]; // Danny's personal notes & reflections
