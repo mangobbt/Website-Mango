@@ -51,8 +51,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [hoveredSpot, setHoveredSpot] = useState<TravelSpot | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<TravelSpot | null>(null);
 
-  // Deep zoom & Pan state: zoomLevel from 1 (world) up to 30 (ultra close-up city street scale)
-  const MAX_ZOOM = 30;
+  // Deep zoom & Pan state: zoomLevel from 1 (world) up to 50 (ultra close-up city street scale)
+  const MAX_ZOOM = 50;
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [center, setCenter] = useState<{ x: number; y: number }>({ x: 500, y: 260 });
   const [isDragging, setIsDragging] = useState(false);
@@ -87,7 +87,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return travelEntries.find((e) => e.id === activeCityId) || null;
   }, [travelEntries, activeCityId]);
 
-  // When parent passes a selectedEntryId, zoom in closely and open in-map card
+  // When parent passes a selectedEntryId, zoom in closely to 40x and open in-map card
   useEffect(() => {
     if (selectedEntryId && selectedEntryId !== activeCityId) {
       const entry = travelEntries.find((e) => e.id === selectedEntryId);
@@ -96,13 +96,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         setIsCityPanelDismissed(false);
         const { x, y } = projectCoords(entry.coordinates.lat, entry.coordinates.lng);
         setCenter({ x, y });
-        setZoomLevel(16);
+        setZoomLevel(40);
         setSelectedSpot(null);
       }
     }
   }, [selectedEntryId, travelEntries, activeCityId]);
 
-  // Zoom helpers with bounds [1, 30]
+  // Zoom helpers with bounds [1, 50]
   const handleZoom = (delta: number) => {
     setZoomLevel((prev) => {
       const next = Math.min(MAX_ZOOM, Math.max(1, +(prev + delta).toFixed(2)));
@@ -121,7 +121,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     setIsCityPanelDismissed(false);
   };
 
-  // Zoom into a specific city and pull up entry inside the map (NO page scrolling!)
+  // Zoom into a specific city at 40x zoom and pull up entry inside the map (NO page scrolling!)
   const handleCityClick = (entry: JournalEntry) => {
     if (!entry.coordinates) return;
     setActiveCityId(entry.id);
@@ -129,7 +129,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     setSelectedSpot(null);
     const { x, y } = projectCoords(entry.coordinates.lat, entry.coordinates.lng);
     setCenter({ x, y });
-    setZoomLevel(16);
+    setZoomLevel(40);
     onSelectEntry(entry);
   };
 
@@ -231,16 +231,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return `${minX} ${minY} ${w} ${h}`;
   }, [zoomLevel, center]);
 
-  // Scaled units to proportionally shrink markers, pins & text at high zoom (up to 30x)
+  // Scaled units to proportionally shrink markers, pins & text at high zoom (up to 50x)
   const invZoom = useMemo(() => 1 / zoomLevel, [zoomLevel]);
 
   // Dynamic sizing based on zoom level:
-  // As zoom increases from 1x to 30x, screen dimensions stay balanced without giant icons
-  const cityPinRadius = useMemo(() => Math.max(0.35, Math.min(5.2, 5.0 * Math.pow(invZoom, 0.72))), [invZoom]);
-  const cityPinStroke = useMemo(() => Math.max(0.06, Math.min(1.2, 1.2 * invZoom)), [invZoom]);
-  const cityLabelFontSize = useMemo(() => Math.max(0.7, Math.min(8.5, 9.0 * Math.pow(invZoom, 0.7))), [invZoom]);
-  const cityLabelDx = useMemo(() => Math.max(0.55, Math.min(6.5, 6.2 * invZoom)), [invZoom]);
-  const cityLabelDy = useMemo(() => Math.max(0.25, Math.min(3.0, 3.0 * invZoom)), [invZoom]);
+  // As zoom increases from 1x to 50x, city pin radius and label font size adapt gracefully in screen pixels
+  const cityPinRadius = useMemo(
+    () => Math.max(0.18, Math.min(5.2, (4.8 + 1.2 * Math.log2(zoomLevel)) * invZoom)),
+    [zoomLevel, invZoom]
+  );
+  const cityPinStroke = useMemo(() => Math.max(0.03, Math.min(1.2, 1.2 * invZoom)), [invZoom]);
+  const cityLabelFontSize = useMemo(
+    () => Math.max(0.35, Math.min(10.5, (10.0 + 1.8 * Math.log2(zoomLevel)) * invZoom)),
+    [zoomLevel, invZoom]
+  );
+  const cityLabelDy = useMemo(() => cityLabelFontSize * 0.35, [cityLabelFontSize]);
 
   // City center in SVG coords
   const activeCityCoords = useMemo(() => {
@@ -252,126 +257,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const activeCitySpots = useMemo(() => {
     return activeCityEntry?.metadata?.travelSpots || [];
   }, [activeCityEntry]);
-
-  // Dynamic visual separation & collision avoidance for mapped spots:
-  // Ensures spots, icons, and labels maintain clear clearance and never overlap with each other or the city center pin
-  const computedCitySpots = useMemo(() => {
-    if (!activeCityCoords || activeCitySpots.length === 0) return [];
-
-    const cityX = activeCityCoords.x;
-    const cityY = activeCityCoords.y;
-
-    // Minimum physical clearance in SVG units:
-    const minSvgDist = Math.max(0.75, 46 / zoomLevel);
-    const minCityCenterClearance = Math.max(1.8, 52 / zoomLevel);
-
-    // Initial position based on geographic coords if present, else radial distribution
-    const list = activeCitySpots.map((spot, idx) => {
-      let x = cityX;
-      let y = cityY;
-
-      if (spot.coordinates) {
-        const raw = projectCoords(spot.coordinates.lat, spot.coordinates.lng);
-        const dx = raw.x - cityX;
-        const dy = raw.y - cityY;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist > 0.00005) {
-          const spreadFactor = Math.max(1.6, Math.min(8.5, zoomLevel / 2.8));
-          x = cityX + dx * spreadFactor;
-          y = cityY + dy * spreadFactor;
-        } else {
-          const angle = idx * 2.39996 + 0.6;
-          const r = minCityCenterClearance + Math.sqrt(idx + 1) * minSvgDist * 1.1;
-          x = cityX + Math.cos(angle) * r;
-          y = cityY + Math.sin(angle) * r;
-        }
-      } else {
-        const angle = idx * 2.39996 + 0.6;
-        const r = minCityCenterClearance + Math.sqrt(idx + 1) * minSvgDist * 1.2;
-        x = cityX + Math.cos(angle) * r;
-        y = cityY + Math.sin(angle) * r;
-      }
-
-      // Ensure minimum distance from city pin
-      const dCity = Math.hypot(x - cityX, y - cityY);
-      if (dCity < minCityCenterClearance) {
-        const angle = dCity > 0.001 ? Math.atan2(y - cityY, x - cityX) : (idx * 2.39996 + 0.6);
-        x = cityX + Math.cos(angle) * minCityCenterClearance;
-        y = cityY + Math.sin(angle) * minCityCenterClearance;
-      }
-
-      const displayName = spot.name.length > 16 ? `${spot.name.slice(0, 14)}…` : spot.name;
-      const charW = Math.max(0.24, Math.min(1.8, 1.8 * Math.pow(invZoom, 0.82)));
-      const pillH = Math.max(0.65, Math.min(4.4, 4.6 * Math.pow(invZoom, 0.82)));
-      const pillW = displayName.length * charW + pillH;
-
-      return {
-        spot,
-        x,
-        y,
-        idx,
-        displayName,
-        pillW,
-        pillH,
-        pillPlacement: 'bottom' as 'bottom' | 'top',
-      };
-    });
-
-    // Multi-pass repulsion relaxation with bounding-box clearance & city pin repulsion
-    for (let iter = 0; iter < 18; iter++) {
-      // 1. Repel from active city center pin (ensures spot and pill NEVER touch city center)
-      for (let i = 0; i < list.length; i++) {
-        const dx = list[i].x - cityX;
-        const dy = list[i].y - cityY;
-        const dist = Math.hypot(dx, dy);
-        if (dist < minCityCenterClearance) {
-          const overlap = minCityCenterClearance - dist;
-          const nx = dist > 0.0001 ? dx / dist : Math.cos((i + 1) * 1.618);
-          const ny = dist > 0.0001 ? dy / dist : Math.sin((i + 1) * 1.618);
-          list[i].x += nx * overlap * 0.85;
-          list[i].y += ny * overlap * 0.85;
-        }
-      }
-
-      // 2. Repel between spots taking into account both badge radius and pill width/height
-      for (let i = 0; i < list.length; i++) {
-        for (let j = i + 1; j < list.length; j++) {
-          const dx = list[j].x - list[i].x;
-          const dy = list[j].y - list[i].y;
-
-          const reqDx = (list[i].pillW + list[j].pillW) * 0.55 + Math.max(0.3, 5 * invZoom);
-          const reqDy = list[i].pillH * 1.6 + Math.max(0.3, 6 * invZoom);
-
-          if (Math.abs(dx) < reqDx && Math.abs(dy) < reqDy) {
-            const overlapX = reqDx - Math.abs(dx);
-            const overlapY = reqDy - Math.abs(dy);
-
-            const signX = dx >= 0 ? 1 : -1;
-            const signY = dy >= 0 ? 1 : -1;
-
-            list[i].x -= signX * (overlapX * 0.45);
-            list[j].x += signX * (overlapX * 0.45);
-            list[i].y -= signY * (overlapY * 0.45);
-            list[j].y += signY * (overlapY * 0.45);
-          }
-        }
-      }
-    }
-
-    // Adaptive pill placement: if a spot is placed close below the city center, place pill above to avoid overlap
-    for (let i = 0; i < list.length; i++) {
-      if (
-        list[i].y > cityY &&
-        list[i].y - cityY < minCityCenterClearance * 1.3 &&
-        Math.abs(list[i].x - cityX) < list[i].pillW * 0.6
-      ) {
-        list[i].pillPlacement = 'top';
-      }
-    }
-
-    return list;
-  }, [activeCityCoords, activeCitySpots, zoomLevel, invZoom]);
 
   // Automated collision-free placement for city markers and city labels
   // Evaluates candidate directions (Right, Left, Top, Bottom) and chooses zero-collision orientation
@@ -389,17 +274,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           ? cityPinRadius * 1.2
           : cityPinRadius;
         const label = entry.location?.split(',')[0] || entry.title;
-        const charW = cityLabelFontSize * 0.55;
-        const pillW = label.length * charW + cityLabelFontSize * 1.1;
-        const pillH = cityLabelFontSize * 1.38;
+        const fontSize = isSelected
+          ? cityLabelFontSize * 1.25
+          : isHovered
+          ? cityLabelFontSize * 1.12
+          : cityLabelFontSize;
+        const charW = fontSize * 0.54;
+        const pillW = label.length * charW + fontSize * 0.8;
+        const pillH = fontSize * 1.35;
+        const dy = fontSize * 0.35;
         return {
           entry,
           x,
           y,
           r,
           label,
+          fontSize,
           pillW,
           pillH,
+          dy,
           isSelected,
           isHovered,
           isWishlist,
@@ -410,8 +303,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const placedBoxes: Array<{ left: number; right: number; top: number; bottom: number }> = [];
 
     return cities.map((city) => {
-      const { x, y, r, pillW, pillH } = city;
-      const gap = Math.max(0.4, 2.2 * invZoom);
+      const { x, y, r, pillW, pillH, fontSize, dy } = city;
+      const gap = Math.max(0.18, 1.6 * invZoom);
 
       const candidates: Record<
         Direction,
@@ -425,26 +318,26 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         right: {
           box: { left: x + r + gap, right: x + r + gap + pillW, top: y - pillH / 2, bottom: y + pillH / 2 },
           anchor: 'start',
-          textX: x + r + gap + pillW * 0.12,
-          textY: y + pillH * 0.28,
+          textX: x + r + gap,
+          textY: y + dy,
         },
         left: {
           box: { left: x - r - gap - pillW, right: x - r - gap, top: y - pillH / 2, bottom: y + pillH / 2 },
           anchor: 'end',
-          textX: x - r - gap - pillW * 0.12,
-          textY: y + pillH * 0.28,
+          textX: x - r - gap,
+          textY: y + dy,
         },
         top: {
           box: { left: x - pillW / 2, right: x + pillW / 2, top: y - r - gap - pillH, bottom: y - r - gap },
           anchor: 'middle',
           textX: x,
-          textY: y - r - gap - pillH * 0.28,
+          textY: y - r - gap - fontSize * 0.12,
         },
         bottom: {
           box: { left: x - pillW / 2, right: x + pillW / 2, top: y + r + gap, bottom: y + r + gap + pillH },
           anchor: 'middle',
           textX: x,
-          textY: y + r + gap + pillH * 0.72,
+          textY: y + r + gap + fontSize * 0.88,
         },
       };
 
@@ -465,7 +358,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         // Collision with any other city pin (e.g. Kyoto vs Tokyo)
         for (const other of cities) {
           if (other.entry.id === city.entry.id) continue;
-          const pinPad = Math.max(0.5, 3.5 * invZoom);
+          const pinPad = Math.max(0.25, 2.5 * invZoom);
           const pinLeft = other.x - other.r - pinPad;
           const pinRight = other.x + other.r + pinPad;
           const pinTop = other.y - other.r - pinPad;
@@ -478,7 +371,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
         // Collision with already placed city label pills
         for (const placed of placedBoxes) {
-          const pad = Math.max(0.3, 2 * invZoom);
+          const pad = Math.max(0.18, 1.8 * invZoom);
           if (
             box.left < placed.right + pad &&
             box.right > placed.left - pad &&
@@ -508,17 +401,223 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         textY: chosen.textY,
       };
     });
-  }, [displayedEntries, activeCityId, hoveredEntry, cityPinRadius, cityLabelFontSize, invZoom]);
+  }, [displayedEntries, activeCityId, hoveredEntry, cityPinRadius, cityLabelFontSize, cityLabelDy, invZoom]);
+
+  // Dynamic visual separation & collision avoidance for mapped spots:
+  // Ensures spots, icons, and labels remain tightly within the city metropolitan area and never drift away or collide
+  const computedCitySpots = useMemo(() => {
+    if (!activeCityCoords || activeCitySpots.length === 0) return [];
+
+    const cityX = activeCityCoords.x;
+    const cityY = activeCityCoords.y;
+
+    // Retrieve active city layout to prevent spots from ever overlaying the city's title
+    const activeCityLayout = computedCityLayouts.find((c) => c.entry.id === activeCityEntry?.id);
+    const activeCityBox = activeCityLayout?.box;
+
+    // In SVG units, 1 unit ≈ 40 km. A city metropolitan area is around 15–35 km in radius (~0.35 to 0.9 SVG units).
+    // Ensure all spot icons remain tightly within the city metropolitan boundaries and never drift far away.
+    const minCityCenterClearance = Math.max(0.22, Math.min(0.55, cityPinRadius * 1.2 + 0.08));
+    const maxCityRadius = Math.max(minCityCenterClearance + 0.35, Math.min(1.2, 0.55 + 3.0 / zoomLevel));
+
+    // Initial position based on geographic coords if present, else distributed within urban boundary
+    const list = activeCitySpots.map((spot, idx) => {
+      let x = cityX;
+      let y = cityY;
+
+      if (spot.coordinates) {
+        const raw = projectCoords(spot.coordinates.lat, spot.coordinates.lng);
+        const dx = raw.x - cityX;
+        const dy = raw.y - cityY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 0.0001) {
+          const angle = Math.atan2(dy, dx);
+          // Scale micro-distances naturally within city metropolitan bounds [minCityCenterClearance, maxCityRadius]
+          const targetDist = Math.max(minCityCenterClearance, Math.min(maxCityRadius, dist * 1.1));
+          x = cityX + Math.cos(angle) * targetDist;
+          y = cityY + Math.sin(angle) * targetDist;
+        } else {
+          const angle = idx * 2.39996 + 0.5;
+          const span = maxCityRadius - minCityCenterClearance;
+          const r = minCityCenterClearance + ((idx % 5) / 5) * span + 0.06;
+          x = cityX + Math.cos(angle) * r;
+          y = cityY + Math.sin(angle) * r;
+        }
+      } else {
+        const angle = idx * 2.39996 + 0.5;
+        const span = maxCityRadius - minCityCenterClearance;
+        const r = minCityCenterClearance + ((idx % 5) / 5) * span + 0.06;
+        x = cityX + Math.cos(angle) * r;
+        y = cityY + Math.sin(angle) * r;
+      }
+
+      // Clamp initial position within city boundary
+      const dCity = Math.hypot(x - cityX, y - cityY);
+      if (dCity < minCityCenterClearance) {
+        const angle = dCity > 0.001 ? Math.atan2(y - cityY, x - cityX) : (idx * 2.39996 + 0.5);
+        x = cityX + Math.cos(angle) * minCityCenterClearance;
+        y = cityY + Math.sin(angle) * minCityCenterClearance;
+      } else if (dCity > maxCityRadius) {
+        const angle = Math.atan2(y - cityY, x - cityX);
+        x = cityX + Math.cos(angle) * maxCityRadius;
+        y = cityY + Math.sin(angle) * maxCityRadius;
+      }
+
+      const displayName = spot.name.length > 16 ? `${spot.name.slice(0, 14)}…` : spot.name;
+      const charW = Math.max(0.14, Math.min(1.2, 1.4 * Math.pow(invZoom, 0.82)));
+      const pillH = Math.max(0.45, Math.min(3.2, 3.4 * Math.pow(invZoom, 0.82)));
+      const pillW = displayName.length * charW + pillH;
+
+      return {
+        spot,
+        x,
+        y,
+        idx,
+        displayName,
+        pillW,
+        pillH,
+        pillPlacement: 'bottom' as 'bottom' | 'top',
+      };
+    });
+
+    // Multi-pass repulsion relaxation with bounding-box clearance, city pin clearance & strict urban radius cap
+    for (let iter = 0; iter < 24; iter++) {
+      // 1. Repel from active city center pin (ensures spot and text never touch city center)
+      for (let i = 0; i < list.length; i++) {
+        const dx = list[i].x - cityX;
+        const dy = list[i].y - cityY;
+        const dist = Math.hypot(dx, dy);
+        if (dist < minCityCenterClearance) {
+          const overlap = minCityCenterClearance - dist;
+          const nx = dist > 0.0001 ? dx / dist : Math.cos((i + 1) * 1.618);
+          const ny = dist > 0.0001 ? dy / dist : Math.sin((i + 1) * 1.618);
+          list[i].x += nx * overlap * 0.85;
+          list[i].y += ny * overlap * 0.85;
+        }
+      }
+
+      // 2. Repel from active city's own label bounding box (NEVER overlay city title with spot icons or text)
+      if (activeCityBox) {
+        const padX = Math.max(0.18, 2.5 * invZoom);
+        const padY = Math.max(0.15, 2.0 * invZoom);
+        for (let i = 0; i < list.length; i++) {
+          const sLeft = list[i].x - list[i].pillW / 2;
+          const sRight = list[i].x + list[i].pillW / 2;
+          const sTop = list[i].y - list[i].pillH;
+          const sBottom = list[i].y + list[i].pillH;
+
+          if (
+            sRight > activeCityBox.left - padX &&
+            sLeft < activeCityBox.right + padX &&
+            sBottom > activeCityBox.top - padY &&
+            sTop < activeCityBox.bottom + padY
+          ) {
+            const overlapX = Math.min(sRight - (activeCityBox.left - padX), (activeCityBox.right + padX) - sLeft);
+            const overlapY = Math.min(sBottom - (activeCityBox.top - padY), (activeCityBox.bottom + padY) - sTop);
+            if (overlapX < overlapY) {
+              const sign = list[i].x >= (activeCityBox.left + activeCityBox.right) / 2 ? 1 : -1;
+              list[i].x += sign * overlapX * 0.6;
+            } else {
+              const sign = list[i].y >= (activeCityBox.top + activeCityBox.bottom) / 2 ? 1 : -1;
+              list[i].y += sign * overlapY * 0.6;
+            }
+          }
+        }
+      }
+
+      // 3. Repel between spots taking into account badge radius and text clearance
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          const dx = list[j].x - list[i].x;
+          const dy = list[j].y - list[i].y;
+
+          const reqDx = (list[i].pillW + list[j].pillW) * 0.52 + Math.max(0.18, 2.5 * invZoom);
+          const reqDy = (list[i].pillH + list[j].pillH) * 0.65 + Math.max(0.15, 2.5 * invZoom);
+
+          if (Math.abs(dx) < reqDx && Math.abs(dy) < reqDy) {
+            const overlapX = reqDx - Math.abs(dx);
+            const overlapY = reqDy - Math.abs(dy);
+
+            const signX = dx >= 0 ? 1 : -1;
+            const signY = dy >= 0 ? 1 : -1;
+
+            list[i].x -= signX * (overlapX * 0.45);
+            list[j].x += signX * (overlapX * 0.45);
+            list[i].y -= signY * (overlapY * 0.45);
+            list[j].y += signY * (overlapY * 0.45);
+          }
+        }
+      }
+
+      // 4. Strictly clamp all spots to remain within the city metropolitan radius
+      for (let i = 0; i < list.length; i++) {
+        const d = Math.hypot(list[i].x - cityX, list[i].y - cityY);
+        if (d > maxCityRadius) {
+          const angle = Math.atan2(list[i].y - cityY, list[i].x - cityX);
+          list[i].x = cityX + Math.cos(angle) * maxCityRadius;
+          list[i].y = cityY + Math.sin(angle) * maxCityRadius;
+        }
+      }
+    }
+
+    // Adaptive label placement: if a spot is placed close below the city center, place label above to avoid overlap
+    for (let i = 0; i < list.length; i++) {
+      if (
+        list[i].y > cityY &&
+        list[i].y - cityY < minCityCenterClearance * 1.3 &&
+        Math.abs(list[i].x - cityX) < list[i].pillW * 0.6
+      ) {
+        list[i].pillPlacement = 'top';
+      }
+    }
+
+    return list;
+  }, [activeCityCoords, activeCitySpots, zoomLevel, invZoom, cityPinRadius, computedCityLayouts, activeCityEntry]);
+
+  // Dynamic descriptive cartographic zoom tier reflecting scale changes when zooming in and out
+  const zoomScaleDescriptor = useMemo(() => {
+    if (zoomLevel <= 1.3) {
+      return { badge: '1.0x', label: 'Global World View', detail: 'Continental Overview' };
+    }
+    if (zoomLevel < 3.5) {
+      return { badge: `${zoomLevel.toFixed(1)}x`, label: 'Continental Scale', detail: 'Regional Overview' };
+    }
+    if (zoomLevel < 8.0) {
+      return { badge: `${zoomLevel.toFixed(1)}x`, label: 'Country & Waterways Scale', detail: 'Rivers & Lakes Revealed' };
+    }
+    if (zoomLevel < 20.0) {
+      return { badge: `${zoomLevel.toFixed(1)}x`, label: 'Regional Province Scope', detail: 'Inter-City Corridors' };
+    }
+    if (zoomLevel < 38.0) {
+      return { badge: `${zoomLevel.toFixed(1)}x`, label: 'Metropolitan District Scale', detail: 'Urban Area & Outskirts' };
+    }
+    return { badge: `${zoomLevel.toFixed(1)}x`, label: 'Street & Micro-Spot Scale', detail: '40x City Focus & Spots' };
+  }, [zoomLevel]);
+
+  // Dynamic layer opacities to prevent label collision and visual clutter as zoom increases
+  const oceanOpacity = useMemo(() => {
+    if (zoomLevel <= 1.8) return 0.62;
+    if (zoomLevel >= 4.2) return 0;
+    return 0.62 * (1 - (zoomLevel - 1.8) / 2.4);
+  }, [zoomLevel]);
+
+  const graticuleTextOpacity = useMemo(() => {
+    if (zoomLevel <= 2.0) return 0.75;
+    if (zoomLevel >= 4.0) return 0;
+    return 0.75 * (1 - (zoomLevel - 2.0) / 2.0);
+  }, [zoomLevel]);
 
   // Cartographic dynamic scale bar in kilometers
   const scaleInfo = useMemo(() => {
-    const targetKm = 3600 / zoomLevel;
+    const targetKm = 3000 / zoomLevel;
     let km = 2000;
-    if (targetKm < 40) km = 25;
-    else if (targetKm < 80) km = 50;
+    if (targetKm < 15) km = 10;
+    else if (targetKm < 35) km = 20;
+    else if (targetKm < 75) km = 50;
     else if (targetKm < 150) km = 100;
-    else if (targetKm < 300) km = 200;
-    else if (targetKm < 700) km = 500;
+    else if (targetKm < 350) km = 250;
+    else if (targetKm < 750) km = 500;
     else if (targetKm < 1500) km = 1000;
     else km = 2000;
 
@@ -542,18 +641,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <h3 className="text-sm font-semibold tracking-tight text-[#1C1917] font-sans">
               Travel Cartography
             </h3>
-            <div className="flex items-center gap-2 text-xs text-[#2B4C6F]/80">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[#2B4C6F]/80">
               <span>{visitedCount} Dispatches Documented</span>
               <span aria-hidden="true">·</span>
               <span>{wishlistCount} Horizons Ahead</span>
-              {zoomLevel > 1.2 && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono text-[11px] bg-[#2B4C6F]/10 px-1.5 py-0.5 rounded text-[#2B4C6F] font-semibold">
-                    {zoomLevel.toFixed(1)}x Zoom (Up to 30x)
-                  </span>
-                </>
-              )}
+              <span aria-hidden="true">·</span>
+              <span className="font-mono text-[11px] bg-[#2B4C6F]/10 px-2 py-0.5 rounded text-[#2B4C6F] font-semibold inline-flex items-center gap-1.5 transition-all">
+                <span>{zoomScaleDescriptor.badge} Zoom</span>
+                <span className="text-[#2B4C6F]/60">·</span>
+                <span className="font-medium">{zoomScaleDescriptor.label}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -597,7 +694,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           </button>
         </div>
 
-        {/* Zoom Controls & Slider (Up to 30x) */}
+        {/* Zoom Controls & Slider (Up to 50x) */}
         <div
           className="flex items-center gap-2"
           onWheel={(e) => e.stopPropagation()}
@@ -640,7 +737,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   }
                 }}
                 className="w-20 sm:w-28 h-1.5 bg-[#CBDDE8] rounded-lg appearance-none cursor-pointer accent-[#2B4C6F]"
-                title={`Map Zoom Level: ${zoomLevel.toFixed(1)}x / 30x`}
+                title={`Zoom: ${zoomLevel.toFixed(1)}x · ${zoomScaleDescriptor.label} (${zoomScaleDescriptor.detail})`}
               />
               <span className="text-[11px] font-mono font-medium text-[#2B4C6F] w-9 text-right">
                 {zoomLevel.toFixed(1)}x
@@ -732,16 +829,28 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           <line x1="500" y1="0" x2="500" y2="520" stroke="#ADCDE0" strokeWidth={Math.max(0.12, 0.6 * invZoom)} />
           <line x1="0" y1="260" x2="1000" y2="260" stroke="#ADCDE0" strokeWidth={Math.max(0.12, 0.6 * invZoom)} />
 
-          {/* Cartographic Graticule Text Annotations */}
-          <g fill="#7A9EB5" fontSize={Math.max(0.4, 2.8 * invZoom)} className="font-mono select-none pointer-events-none">
-            <text x="8" y="258">EQUATOR · 0°</text>
-            <text x="8" y="187">TROPIC OF CANCER · 23.5°N</text>
-            <text x="8" y="329">TROPIC OF CAPRICORN · 23.5°S</text>
-            <text x="502" y={Math.max(3, 10 * invZoom)} textAnchor="start">PRIME MERIDIAN · 0°</text>
-          </g>
+          {/* Cartographic Graticule Text Annotations (Fades out smoothly when zooming in to avoid overlaying cities) */}
+          {graticuleTextOpacity > 0.01 && (
+            <g
+              fill="#7A9EB5"
+              fontSize={Math.max(0.2, 2.8 * invZoom)}
+              className="font-mono select-none pointer-events-none transition-opacity duration-150"
+              opacity={graticuleTextOpacity}
+            >
+              <text x="8" y="258">EQUATOR · 0°</text>
+              <text x="8" y="187">TROPIC OF CANCER · 23.5°N</text>
+              <text x="8" y="329">TROPIC OF CAPRICORN · 23.5°S</text>
+              <text x="502" y={Math.max(3, 10 * invZoom)} textAnchor="start">PRIME MERIDIAN · 0°</text>
+            </g>
+          )}
 
-          {/* OCEAN LABELS (Cartographic Atlas Typography) */}
-          <g fill="#7294A8" className="select-none pointer-events-none font-serif tracking-[0.24em] uppercase" opacity="0.62">
+          {/* OCEAN LABELS (Cartographic Atlas Typography, fades out gracefully when zooming in to prevent overlay) */}
+          {oceanOpacity > 0.01 && (
+            <g
+              fill="#7294A8"
+              className="select-none pointer-events-none font-serif tracking-[0.24em] uppercase transition-opacity duration-150"
+              opacity={oceanOpacity}
+            >
             {/* North Pacific Ocean */}
             <text
               x="130"
@@ -839,6 +948,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               Southern Ocean
             </text>
           </g>
+          )}
 
           {/* REALISTIC DETAILED GEOGRAPHIC CONTINENTS */}
           <g filter="url(#coastalShelf)">
@@ -1293,45 +1403,53 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <path d="M 920 376 Q 900 398 884 416" />
           </g>
 
-          {/* DEEP ZOOM WATERWAY LABELS (Lakes & Rivers revealed when zoomed in >= 4.8x) */}
+          {/* DEEP ZOOM WATERWAY LABELS (Lakes & Rivers revealed when zoomed in >= 4.5x, adapted with subtle halo) */}
           {zoomLevel >= 4.5 && (
             <g
               className="waterway-labels-layer pointer-events-none select-none font-serif italic"
               fill="#254F6E"
-              opacity={Math.min(0.95, Math.max(0.1, (zoomLevel - 4.5) / 1.0))}
+              opacity={
+                zoomLevel > 35
+                  ? Math.max(0.3, 0.95 * (1 - (zoomLevel - 35) / 20))
+                  : Math.min(0.95, Math.max(0.1, (zoomLevel - 4.5) / 1.0))
+              }
+              style={{
+                textShadow:
+                  '0 0.5px 1.5px rgba(255, 255, 255, 0.95), 0 -0.5px 1.5px rgba(255, 255, 255, 0.95), 0.5px 0 1.5px rgba(255, 255, 255, 0.95), -0.5px 0 1.5px rgba(255, 255, 255, 0.95)',
+              }}
             >
               {/* Freshwater Lakes & Inland Seas (Centered precisely inside the boundaries of each lake) */}
-              <text x="254" y="106.5" fontSize={Math.max(0.32, 1.5 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Superior</text>
-              <text x="261.5" y="116.5" fontSize={Math.max(0.26, 1.25 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Michigan</text>
-              <text x="269" y="115" fontSize={Math.max(0.26, 1.25 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Huron</text>
-              <text x="275" y="126" fontSize={Math.max(0.24, 1.15 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Erie</text>
-              <text x="284" y="123" fontSize={Math.max(0.24, 1.15 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Ontario</text>
-              <text x="166" y="48" fontSize={Math.max(0.35, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Great Bear Lake</text>
-              <text x="182" y="62" fontSize={Math.max(0.35, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Great Slave Lake</text>
-              <text x="637" y="128" fontSize={Math.max(0.42, 2.1 * invZoom)} textAnchor="middle" dominantBaseline="central">Caspian Sea</text>
-              <text x="598" y="122" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" dominantBaseline="central">Black Sea</text>
-              <text x="791" y="94" fontSize={Math.max(0.35, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Baikal</text>
-              <text x="592" y="278" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Victoria</text>
-              <text x="581" y="296" fontSize={Math.max(0.34, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Tanganyika</text>
-              <text x="596.5" y="321" fontSize={Math.max(0.34, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Malawi</text>
+              <text x="254" y="106.5" fontSize={Math.max(0.14, 1.4 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Superior</text>
+              <text x="261.5" y="116.5" fontSize={Math.max(0.12, 1.2 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Michigan</text>
+              <text x="269" y="115" fontSize={Math.max(0.12, 1.2 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Huron</text>
+              <text x="275" y="126" fontSize={Math.max(0.11, 1.1 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Erie</text>
+              <text x="284" y="123" fontSize={Math.max(0.11, 1.1 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Ontario</text>
+              <text x="166" y="48" fontSize={Math.max(0.14, 1.5 * invZoom)} textAnchor="middle" dominantBaseline="central">Great Bear Lake</text>
+              <text x="182" y="62" fontSize={Math.max(0.14, 1.5 * invZoom)} textAnchor="middle" dominantBaseline="central">Great Slave Lake</text>
+              <text x="637" y="128" fontSize={Math.max(0.16, 1.8 * invZoom)} textAnchor="middle" dominantBaseline="central">Caspian Sea</text>
+              <text x="598" y="122" fontSize={Math.max(0.15, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Black Sea</text>
+              <text x="791" y="94" fontSize={Math.max(0.14, 1.5 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Baikal</text>
+              <text x="592" y="278" fontSize={Math.max(0.15, 1.7 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Victoria</text>
+              <text x="581" y="296" fontSize={Math.max(0.13, 1.5 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Tanganyika</text>
+              <text x="596.5" y="321" fontSize={Math.max(0.13, 1.5 * invZoom)} textAnchor="middle" dominantBaseline="central">Lake Malawi</text>
 
               {/* Major Rivers */}
-              <text x="345" y="274" fontSize={Math.max(0.45, 2.1 * invZoom)} textAnchor="middle" transform="rotate(-3, 345, 274)">Amazon River</text>
-              <text x="246" y="160" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(78, 246, 160)">Mississippi River</text>
-              <text x="218" y="130" fontSize={Math.max(0.38, 1.8 * invZoom)} textAnchor="middle" transform="rotate(28, 218, 130)">Missouri River</text>
-              <text x="318" y="104" fontSize={Math.max(0.36, 1.7 * invZoom)} textAnchor="middle" transform="rotate(-26, 318, 104)">St. Lawrence River</text>
-              <text x="198" y="165" fontSize={Math.max(0.38, 1.8 * invZoom)} textAnchor="middle" transform="rotate(65, 198, 165)">Colorado River</text>
-              <text x="584" y="210" fontSize={Math.max(0.45, 2.2 * invZoom)} textAnchor="middle" transform="rotate(-82, 584, 210)">Nile River</text>
-              <text x="526" y="292" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle">Congo River</text>
-              <text x="536" y="131" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(6, 536, 131)">Danube River</text>
-              <text x="517" y="112" fontSize={Math.max(0.38, 1.8 * invZoom)} textAnchor="middle" transform="rotate(-75, 517, 112)">Rhine River</text>
-              <text x="614" y="96" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(30, 614, 96)">Volga River</text>
-              <text x="805" y="163" fontSize={Math.max(0.45, 2.2 * invZoom)} textAnchor="middle">Yangtze River</text>
-              <text x="798" y="134" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle">Yellow River</text>
-              <text x="736" y="186" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(35, 736, 186)">Ganges River</text>
-              <text x="702" y="176" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(-50, 702, 176)">Indus River</text>
-              <text x="778" y="206" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(70, 778, 206)">Mekong River</text>
-              <text x="904" y="396" fontSize={Math.max(0.4, 2.0 * invZoom)} textAnchor="middle" transform="rotate(40, 904, 396)">Murray-Darling River</text>
+              <text x="345" y="274" fontSize={Math.max(0.15, 1.8 * invZoom)} textAnchor="middle" transform="rotate(-3, 345, 274)">Amazon River</text>
+              <text x="246" y="160" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(78, 246, 160)">Mississippi River</text>
+              <text x="218" y="130" fontSize={Math.max(0.13, 1.5 * invZoom)} textAnchor="middle" transform="rotate(28, 218, 130)">Missouri River</text>
+              <text x="318" y="104" fontSize={Math.max(0.13, 1.5 * invZoom)} textAnchor="middle" transform="rotate(-26, 318, 104)">St. Lawrence River</text>
+              <text x="198" y="165" fontSize={Math.max(0.13, 1.5 * invZoom)} textAnchor="middle" transform="rotate(65, 198, 165)">Colorado River</text>
+              <text x="584" y="210" fontSize={Math.max(0.15, 1.8 * invZoom)} textAnchor="middle" transform="rotate(-82, 584, 210)">Nile River</text>
+              <text x="526" y="292" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle">Congo River</text>
+              <text x="536" y="131" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(6, 536, 131)">Danube River</text>
+              <text x="517" y="112" fontSize={Math.max(0.13, 1.5 * invZoom)} textAnchor="middle" transform="rotate(-75, 517, 112)">Rhine River</text>
+              <text x="614" y="96" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(30, 614, 96)">Volga River</text>
+              <text x="805" y="163" fontSize={Math.max(0.15, 1.8 * invZoom)} textAnchor="middle">Yangtze River</text>
+              <text x="798" y="134" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle">Yellow River</text>
+              <text x="736" y="186" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(35, 736, 186)">Ganges River</text>
+              <text x="702" y="176" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(-50, 702, 176)">Indus River</text>
+              <text x="778" y="206" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(70, 778, 206)">Mekong River</text>
+              <text x="904" y="396" fontSize={Math.max(0.14, 1.7 * invZoom)} textAnchor="middle" transform="rotate(40, 904, 396)">Murray-Darling River</text>
             </g>
           )}
 
@@ -1384,22 +1502,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
                 {/* City Marker Text Label (Collision-Free, Clean Cartographic Typography without Pill Badge) */}
                 <text
-                  x={
-                    city.anchor === 'middle'
-                      ? city.x
-                      : city.anchor === 'start'
-                      ? city.x + city.r + Math.max(0.6, 2.5 * invZoom)
-                      : city.x - city.r - Math.max(0.6, 2.5 * invZoom)
-                  }
-                  y={
-                    city.anchor === 'middle'
-                      ? city.dir === 'top'
-                        ? city.y - city.r - Math.max(0.5, 2.2 * invZoom)
-                        : city.y + city.r + cityLabelFontSize + Math.max(0.5, 2.2 * invZoom)
-                      : city.y + cityLabelDy
-                  }
+                  x={city.textX}
+                  y={city.textY}
                   textAnchor={city.anchor}
-                  fontSize={cityLabelFontSize}
+                  fontSize={city.fontSize}
                   className={`font-sans select-none pointer-events-none transition-all ${
                     city.isSelected
                       ? 'fill-[#1C1917] font-bold'
@@ -1419,7 +1525,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           })}
 
           {/* MOUNTAIN SPOTS LAYER - WITH DYNAMIC DEGREE OF SEPARATION & COLLISION AVOIDANCE */}
-          {activeCityEntry && activeCityCoords && zoomLevel > 2.0 && (
+          {activeCityEntry && activeCityCoords && (zoomLevel >= 2.5 || activeCityId) && (
             <g className="mountain-spots-layer">
               {/* Connector lines from city center to mountain spots */}
               {computedCitySpots.map(({ spot, x, y, idx }) => (
@@ -1430,8 +1536,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   x2={x}
                   y2={y}
                   stroke="#2D5A43"
-                  strokeWidth={Math.max(0.04, 0.25 * invZoom)}
-                  strokeDasharray={`${Math.max(0.15, 0.7 * invZoom)} ${Math.max(0.15, 0.7 * invZoom)}`}
+                  strokeWidth={Math.max(0.025, 0.25 * invZoom)}
+                  strokeDasharray={`${Math.max(0.12, 0.7 * invZoom)} ${Math.max(0.12, 0.7 * invZoom)}`}
                   opacity="0.45"
                 />
               ))}
@@ -1441,15 +1547,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 const isSpotSelected = selectedSpot?.name === spot.name;
                 const isSpotHovered = hoveredSpot?.name === spot.name;
 
-                const spotR = Math.max(0.24, Math.min(2.5, (isSpotSelected ? 3.4 : 2.5) * Math.pow(invZoom, 0.78)));
-                const spotStrokeW = Math.max(0.04, Math.min(0.55, 0.55 * invZoom));
-                const spotEmojiSize = Math.max(0.42, Math.min(2.8, 2.8 * Math.pow(invZoom, 0.78)));
-                const pillFontSize = Math.max(0.45, Math.min(3.2, 3.4 * Math.pow(invZoom, 0.82)));
+                const spotR = Math.max(0.16, Math.min(2.5, (isSpotSelected ? 3.0 : 2.2) * Math.pow(invZoom, 0.78)));
+                const spotStrokeW = Math.max(0.025, Math.min(0.55, 0.55 * invZoom));
+                const spotEmojiSize = Math.max(0.26, Math.min(2.8, 2.6 * Math.pow(invZoom, 0.78)));
+                const pillFontSize = Math.max(0.28, Math.min(3.2, 3.2 * Math.pow(invZoom, 0.82)));
 
                 const textY =
                   pillPlacement === 'top'
-                    ? -spotR - Math.max(0.3, 1.2 * invZoom)
-                    : spotR + pillFontSize + Math.max(0.2, 0.8 * invZoom);
+                    ? -spotR - Math.max(0.18, 1.2 * invZoom)
+                    : spotR + pillFontSize + Math.max(0.15, 0.8 * invZoom);
 
                 return (
                   <g

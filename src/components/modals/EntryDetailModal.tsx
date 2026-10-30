@@ -24,7 +24,6 @@ import {
 import { MangoIcon } from '../icons/MangoIcon';
 import { FractionalRating } from '../common/FractionalRating';
 import { getGoogleMapsUrl } from '../../utils/mapLinks';
-import { getSpotifyEmbedUrl } from '../../utils/spotify';
 
 interface EntryDetailModalProps {
   entry: JournalEntry | null;
@@ -87,7 +86,6 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
       : [];
 
   const travelSpots = entry.metadata?.travelSpots || [];
-  const spotifyEmbedUrl = getSpotifyEmbedUrl(entry.metadata?.spotifyUrl);
 
   const getSectionBadge = (section: string, isHomeCooked?: boolean) => {
     if (isHomeCooked) return { label: 'Recipe', icon: '🍳', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
@@ -713,29 +711,9 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Monthly Digest Spotify Embed & Personal Notes */}
+              {/* Monthly Digest Personal Notes */}
               {isDigest && (
                 <div className="space-y-4">
-                  {spotifyEmbedUrl && (
-                    <div className="p-4 rounded-2xl bg-[#121212] border border-[#282828] text-white">
-                      <div className="flex items-center justify-between text-xs text-[#B3B3B3] mb-2 font-mono">
-                        <span className="flex items-center gap-1.5 text-white font-medium">
-                          <Music className="w-3.5 h-3.5 text-[#1DB954]" />
-                          <span>Soundtrack on Repeat</span>
-                        </span>
-                        <span>Spotify</span>
-                      </div>
-                      <iframe
-                        src={spotifyEmbedUrl}
-                        width="100%"
-                        height="80"
-                        frameBorder="0"
-                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                        loading="lazy"
-                        className="rounded-xl"
-                      />
-                    </div>
-                  )}
 
                   {entry.metadata?.personalNotes && entry.metadata.personalNotes.length > 0 && (
                     <div className="p-5 bg-[#FAF7F2] rounded-2xl border border-[#EDE6DC]">

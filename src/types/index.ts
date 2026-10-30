@@ -56,9 +56,6 @@ export interface JournalEntry {
     // Google Maps integration
     googleMapsUrl?: string;
 
-    // Spotify soundtrack integration
-    spotifyUrl?: string;
-
     // Travel recommendations & spots
     travelSpots?: TravelSpot[];
     country?: string;

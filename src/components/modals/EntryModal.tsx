@@ -108,7 +108,6 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [showAddSpotForm, setShowAddSpotForm] = useState(false);
 
   // Digest specifics
-  const [spotifyUrl, setSpotifyUrl] = useState('');
   const [personalNotesText, setPersonalNotesText] = useState('');
 
   // Photos specifics
@@ -168,7 +167,6 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setTravelSeason(initialEntry.metadata.travelSeason || 'Spring');
         setBestMemory(initialEntry.metadata.bestMemory || '');
         setTravelSpots(initialEntry.metadata.travelSpots || []);
-        setSpotifyUrl(initialEntry.metadata.spotifyUrl || '');
         setPersonalNotesText(initialEntry.metadata.personalNotes?.join('\n') || '');
         setLinkedItemIds(initialEntry.metadata.linkedItemIds || []);
         setCreator(initialEntry.metadata.creator || '');
@@ -226,7 +224,6 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       setTravelSeason('Spring');
       setBestMemory('');
       setTravelSpots([]);
-      setSpotifyUrl('');
       setPersonalNotesText('');
       setCreator('');
       setMediaType('book');
@@ -437,7 +434,6 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         travelSeason: section === 'travel' ? travelSeason.trim() : undefined,
         bestMemory: section === 'travel' ? bestMemory.trim() : undefined,
         travelSpots: section === 'travel' && travelSpots.length > 0 ? travelSpots : undefined,
-        spotifyUrl: section === 'digest' ? spotifyUrl.trim() : undefined,
         personalNotes: section === 'digest' && parsedPersonalNotes.length > 0 ? parsedPersonalNotes : undefined,
         linkedItemIds: section === 'digest' && digestSubtype === 'monthly_digest' && linkedItemIds.length > 0 ? linkedItemIds : undefined,
         creator: section === 'library' ? creator.trim() : undefined,
@@ -790,22 +786,6 @@ export const EntryModal: React.FC<EntryModalProps> = ({
                   </div>
                 </div>
               )}
-
-              <div>
-                <label className="block text-xs font-medium text-[#1C1917] mb-1">
-                  Spotify Track / Album / Playlist Link (Optional)
-                </label>
-                <input
-                  type="url"
-                  value={spotifyUrl}
-                  onChange={(e) => setSpotifyUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/track/..."
-                  className="w-full px-3.5 py-2 text-sm bg-white border border-[#D8D0C2] rounded-xl text-[#1C1917]"
-                />
-                <p className="text-[11px] text-[#78716C] mt-1">
-                  Pasting a Spotify link will embed a sleek, playable compact player directly into your digest.
-                </p>
-              </div>
 
               <div>
                 <label className="block text-xs font-medium text-[#1C1917] mb-1">

@@ -6,7 +6,6 @@
 import React, { useState, useMemo } from 'react';
 import { JournalEntry } from '../../types';
 import { Music, ArrowRight, BookOpen, Sparkles, Compass, ChefHat, Camera, Layers } from 'lucide-react';
-import { getSpotifyEmbedUrl } from '../../utils/spotify';
 
 interface DigestViewProps {
   entries: JournalEntry[];
@@ -35,8 +34,6 @@ export const DigestView: React.FC<DigestViewProps> = ({
       return e.subType === 'reflection' || e.subType !== 'monthly_digest';
     });
   }, [pastDigests, typeFilter]);
-
-  const latestSpotifyEmbed = latestDigest ? getSpotifyEmbedUrl(latestDigest.metadata?.spotifyUrl) : null;
 
   // Helper to resolve linked items in travel, food, and photos
   const getLinkedEntries = (entry: JournalEntry): JournalEntry[] => {
@@ -213,30 +210,7 @@ export const DigestView: React.FC<DigestViewProps> = ({
             </div>
           )}
 
-          {/* Embedded Compact Spotify Player */}
-          {latestSpotifyEmbed ? (
-            <div
-              className="mt-6 p-4 rounded-2xl bg-[#121212] border border-[#282828] text-white"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between text-xs text-[#B3B3B3] mb-2 font-mono">
-                <span className="flex items-center gap-1.5 text-white font-medium">
-                  <Music className="w-3.5 h-3.5 text-[#1DB954]" />
-                  <span>Soundtrack on Repeat</span>
-                </span>
-                <span>Spotify</span>
-              </div>
-              <iframe
-                src={latestSpotifyEmbed}
-                width="100%"
-                height="80"
-                frameBorder="0"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                className="rounded-xl shadow-xs"
-              />
-            </div>
-          ) : latestDigest.metadata?.monthlyTrack ? (
+          {latestDigest.metadata?.monthlyTrack && (
             <div className="mt-6 flex items-center justify-between gap-4 p-4 rounded-xl bg-[#EEF4EF] border border-[#D2E0D4] text-xs text-[#2B3F33]">
               <div className="flex items-center gap-2.5">
                 <Music className="w-4 h-4 text-[#2D5A43]" />
@@ -246,7 +220,7 @@ export const DigestView: React.FC<DigestViewProps> = ({
                 </span>
               </div>
             </div>
-          ) : null}
+          )}
         </section>
       )}
 

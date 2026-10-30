@@ -141,7 +141,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               Journeys
             </h2>
             <p className="text-xs text-[#78716C] mt-0.5">
-              Direct shortcuts into Danny's curated notebooks
+              Notebooks
             </p>
           </div>
           <span className="text-xs text-[#78716C] font-mono">5 Curated Notebooks</span>
@@ -191,10 +191,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="flex items-center justify-between border-b border-[#E7E2D8] pb-3">
           <div>
             <h2 className="text-xl sm:text-2xl font-serif font-medium text-[#1C1917]">
-              Latest Dispatches & Discoveries
+              Latest Dispatches
             </h2>
             <p className="text-xs text-[#78716C] mt-0.5">
-              Hand-picked standout items from across all sections
+              The latest updates
             </p>
           </div>
         </div>

@@ -126,7 +126,7 @@ export const TravelView: React.FC<TravelViewProps> = ({
           />
         </div>
         <div className="flex items-center justify-between text-xs text-[#78716C] px-2 pt-2 font-mono">
-          <span>Click any city to zoom in & reveal mountain spots 🏔️ · Zoom (+ / -) or drag to pan</span>
+          <span>Click any city to zoom into 40x & reveal mountain spots 🏔️ · Zoom (+ / -) or drag to pan</span>
           <span>Equirectangular World Projection</span>
         </div>
       </section>

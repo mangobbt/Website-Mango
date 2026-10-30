@@ -48,7 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-2xl group-hover:scale-110 transition-transform">🌱</span>
           <span className="font-serif">Danny</span>
           <span className="text-xs font-sans tracking-widest text-[#78716C] uppercase font-normal hidden lg:inline">
-            · Commonplace
+            · Garden
           </span>
         </button>
 
